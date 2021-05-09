@@ -26,3 +26,36 @@ v3f_create(f32 x,f32 y, f32 z)
     return result;
 }
 
+v3
+mul_f32v3(f32 x, v3 A)
+{
+    v3 result;
+    
+    result.x = A.x * x;
+    result.y = A.y * x;
+    result.z = A.z * x;
+    
+    return result;
+}
+
+v3
+add_v3v3(v3 A, v3 B)
+{
+    v3 result;
+    
+    result.x = A.x + B.x;
+    result.y = A.y + B.y;
+    result.z = A.z + B.z;
+    
+    return result;
+}
+
+v3 
+lerp_v3(v3 A, v3 B, f32 t)
+{
+    v3 result;
+    
+    result = add_v3v3(mul_f32v3((1.0f - t),A),mul_f32v3(t,B));
+    
+    return result;
+}
