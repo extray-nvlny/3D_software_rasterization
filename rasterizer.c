@@ -1,26 +1,68 @@
 #include "rasterizer.h"
 
+
 typedef struct Vertex
 {
     v3 p;
+    v3 color;
 }Vertex;
 
+u32
+rgb1_to_rgb255(v3 A)
+{
+    u32 result;
+    
+    result = (((s32)(A.r*255.0f) << 16) |
+              ((s32)(A.g*255.0f) << 8) | 
+              ((s32)(A.b*255.0f)));
+    
+    return result;
+}
+
 void
-draw_scanline(AppBackbuffer *backbuffer,s32 x0,s32 x1,s32 y,u32 color)
+barycentric(v3 A, v3 B, v3 C, v3 p, f32 *u, f32 *v, f32 *w)
+{
+    
+    v2 v0 = subtract_v2v2(B.xy,A.xy);
+    v2 v1 = subtract_v2v2(C.xy,A.xy);
+    v2 v2 = subtract_v2v2(p.xy,A.xy);
+    
+    // v0 = B-A   v1 = C-A    v2 = p-A
+    f32 d00 = dot_product_2(v0,v0);
+    f32 d01 = dot_product_2(v0,v1);
+    f32 d11 = dot_product_2(v1,v1);
+    f32 d20 = dot_product_2(v2,v0);
+    f32 d21 = dot_product_2(v2,v1);
+    
+    f32 denominator = d00*d11 - d01 * d01;
+    
+    *v = (d11*d20-d01*d21) / denominator;
+    *w = (d00*d21-d01*d20) / denominator;
+    *u = 1.0f - *v - *w;
+}
+
+// NOTE(shvayko): draw_scanline used only in draw_flat_x_tri funtions
+void
+draw_scanline(AppBackbuffer *backbuffer,s32 x0,s32 x1,s32 y,
+              Vertex v0,Vertex v1,Vertex v2)
 {
     u32 *pixel = (u32*)((u8*)backbuffer->memory + x0 * 4 + backbuffer->stride * y);
     
+    f32 u,v,w;
+    u = v = w = 0;
     for(s32 x = x0;
         x < x1;
         x++)
     {
+        barycentric(v0.p,v1.p,v2.p,v3f(x,y,0),&u,&v,&w);
+        v3 v3_color = add_v3v3(add_v3v3(mul_f32v3(u,v0.color),mul_f32v3(v,v1.color)),mul_f32v3(w,v2.color));
+        u32 color = rgb1_to_rgb255(v3_color);
         *pixel++ = color;
     }
 }
 
 void
-draw_flat_bottom_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2,
-                     v3 src_color)
+draw_flat_bottom_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
 {
     
     // NOTE(shvayko):CLOCKWISE vertices order 
@@ -36,12 +78,8 @@ draw_flat_bottom_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2,
     f32 x_start = v0.p.x;
     f32 x_end   = v0.p.x;
     
-    s32 y_start = (s32)ceil(v0.p.y);
-    s32 y_end   = (s32)ceil(v2.p.y) - 1;
-    
-    u32 color = (((s32)(src_color.r*255.0f) << 16) |
-                 ((s32)(src_color.g*255.0f) << 8) |
-                 ((s32)(src_color.b*255.0f)));
+    s32 y_start = (s32)ceil(v0.p.y - 0.5f);
+    s32 y_end   = (s32)ceil(v2.p.y - 0.5f);
     
     for(s32 y = y_start;
         y <= y_end;
@@ -55,15 +93,14 @@ draw_flat_bottom_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2,
         x_start = v0.p.x + (y-y_start)*dxy_left;
         x_end   = v0.p.x + (y-y_start)*dxy_right;
         
-        s32 x0 = (s32)ceil(x_start);
-        s32 x1 = (s32)ceil(x_end) - 1;
-        draw_scanline(backbuffer, x0, x1, y, color);
+        s32 x0 = (s32)ceil(x_start - 0.5f);
+        s32 x1 = (s32)ceil(x_end - 0.5f);
+        draw_scanline(backbuffer, x0, x1, y, v0,v1,v2);
     }
 }
 
 void
-draw_flat_top_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2,
-                  v3 src_color)
+draw_flat_top_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
 {
     // NOTE(shvayko):CLOCKWISE vertices order 
     
@@ -78,12 +115,8 @@ draw_flat_top_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2,
     f32 x_start = v2.p.x;
     f32 x_end   = v0.p.x;
     
-    s32 y_start = (s32)ceil(v0.p.y);
-    s32 y_end   = (s32)ceil(v1.p.y) - 1;
-    
-    u32 color = (((s32)(src_color.r*255.0f) << 16) |
-                 ((s32)(src_color.g*255.0f) << 8) |
-                 ((s32)(src_color.b*255.0f)));
+    s32 y_start = (s32)ceil(v0.p.y - 0.5f);
+    s32 y_end   = (s32)ceil(v1.p.y - 0.5f);
     
     for(s32 y = y_start;
         y <= y_end;
@@ -92,14 +125,14 @@ draw_flat_top_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2,
         x_start = v2.p.x + (y - y_start)*dxy_left;
         x_end   = v0.p.x + (y - y_start)*dxy_right;
         
-        s32 x0 = (s32)ceil(x_start);
-        s32 x1 = (s32)ceil(x_end) - 1;
-        draw_scanline(backbuffer, x0, x1, y, color);
+        s32 x0 = (s32)ceil(x_start - 0.5f);
+        s32 x1 = (s32)ceil(x_end - 0.5f);
+        draw_scanline(backbuffer, x0, x1, y, v0,v1,v2);
     }
 }
 
 void
-draw_triangle(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2, v3 color)
+draw_triangle(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
 {
     // NOTE(shvayko): Sort vertices by their Y coordinates
     //                v0 smallest - v2 biggest
@@ -138,7 +171,7 @@ draw_triangle(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2, v3 col
             v0 = v1;
             v1 = temp;
         }
-        draw_flat_top_tri(backbuffer, v0, v2, v1,color);
+        draw_flat_top_tri(backbuffer, v0, v2, v1);
     }
     else if(v1.p.y == v2.p.y) // NOTE(shvayko):flat bottom triangle
     {
@@ -148,7 +181,7 @@ draw_triangle(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2, v3 col
             v2 = v1;
             v1 = temp;
         }
-        draw_flat_bottom_tri(backbuffer, v0, v1, v2,color);
+        draw_flat_bottom_tri(backbuffer, v0, v1, v2);
     }
     else // NOTE(shvayko): General triangle
     {
@@ -160,13 +193,13 @@ draw_triangle(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2, v3 col
         // NOTE(shvayko): Decide what major triangle is
         if(new_vertex.p.x > v1.p.x) // NOTE(shvayko): right major
         {
-            draw_flat_bottom_tri(backbuffer, v0, new_vertex, v1 , color);
-            draw_flat_top_tri(backbuffer,  new_vertex, v2, v1,    color);
+            draw_flat_bottom_tri(backbuffer, v0, new_vertex, v1);
+            draw_flat_top_tri(backbuffer,  new_vertex, v2, v1);
         }
         else if(new_vertex.p.x < v1.p.x) // NOTE(shvayko): left major
         {
-            draw_flat_bottom_tri(backbuffer, v0,v1,new_vertex,color);
-            draw_flat_top_tri(backbuffer, v1,v2, new_vertex,color);
+            draw_flat_bottom_tri(backbuffer, v0,v1,new_vertex);
+            draw_flat_top_tri(backbuffer, v1,v2, new_vertex);
         }
     }
 }
@@ -174,26 +207,34 @@ draw_triangle(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2, v3 col
 void 
 update_and_render(AppBackbuffer *backbuffer, AppMemory *memory)
 {
-    struct Vertex v0 = {400.0,100.0f,1.0f};
-    struct Vertex v1 = {500.0,200.0f,1.0f};
-    struct Vertex v2 = {0.0,200.0f,1.0f};
-    //draw_triangle(backbuffer,v0,v2,v1,v3f(0.0f,1.0f,0.0f));
+    struct Vertex v0 = {
+        {400.0,100.0f,1.0f},
+        {0.0f,0.0f,1.0f}
+    };
+    struct Vertex v1 = {
+        {500.0,200.0f,1.0f},
+        {0.0f,1.0f,0.0f}
+    };
+    struct Vertex v2 = {
+        {300.0,200.0f,1.0f},
+        {1.0f,0.0f,0.0f}
+    };
+    draw_triangle(backbuffer,v0,v2,v1);
     
-    struct Vertex v00 = {500.0,300.0f,1.0f};
-    struct Vertex v11 = {400.0,400.0f,1.0f};
-    struct Vertex v22 = {0.0,300.0f,1.0f};
-    //draw_triangle(backbuffer,v22,v11,v00,v3f(0.0f,1.0f,1.0f));
-    
-    
-    struct Vertex v000 = {300.0,200.0f,1.0f};
-    struct Vertex v111 = {400.0,500.0f,1.0f};
-    struct Vertex v222 = {200.0,400.0f,1.0f};
-    draw_triangle(backbuffer,v222,v111,v000,v3f(1.0f,1.0f,1.0f));
-    
-    
-    struct Vertex v0000 = {500.0,200.0f,1.0f};
-    struct Vertex v1111 = {400.0,500.0f,1.0f};
-    struct Vertex v2222 = {600.0,400.0f,1.0f};
-    draw_triangle(backbuffer,v2222,v1111,v0000,v3f(1.0f,1.0f,0.0f));
-    
+    struct Vertex v00 = 
+    {
+        {500.0,300.0f,1.0f},
+        {1.0f,0.0f,0.0f}
+    };
+    struct Vertex v11 = 
+    {
+        {400.0,400.0f,1.0f},
+        {0.0f,1.0f,0.0f}
+    };
+    struct Vertex v22 = 
+    {
+        {300.0,300.0f,1.0f},
+        {0.0f,0.0f,1.0f}
+    };
+    draw_triangle(backbuffer,v22,v11,v00);
 }

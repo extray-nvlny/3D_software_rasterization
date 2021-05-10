@@ -1,6 +1,30 @@
 #include "platform.h"
 #include <math.h>
 
+
+typedef struct v2 
+{
+    union
+    {
+        f32 e[2];
+        struct 
+        {
+            f32 x,y;
+        };
+    };
+    
+}v2;
+
+#define v2f(x,y) v2f_create(x,y)
+
+v2 
+v2f_create(f32 x,f32 y)
+{
+    struct v2 result = {x,y};
+    return result;
+}
+
+
 typedef struct v3 
 {
     union
@@ -13,6 +37,11 @@ typedef struct v3
         struct 
         {
             f32 r,g,b;
+        };
+        struct
+        {
+            v2 xy;
+            f32 igonred;
         };
     };
 }v3;
@@ -49,6 +78,53 @@ add_v3v3(v3 A, v3 B)
     
     return result;
 }
+
+v3
+subtract_v3v3(v3 A, v3 B)
+{
+    v3 result;
+    
+    result.x = A.x - B.x;
+    result.y = A.y - B.y;
+    result.z = A.z - B.z;
+    
+    return result;
+}
+
+
+v2
+subtract_v2v2(v2 A, v2 B)
+{
+    v2 result;
+    
+    result.x = A.x - B.x;
+    result.y = A.y - B.y;
+    
+    return result;
+}
+
+
+f32 
+dot_product_3(v3 A,v3 B)
+{
+    f32 result;
+    
+    result = A.x*B.x + A.y*B.y + A.z*B.z;
+    
+    return result;
+}
+
+
+f32 
+dot_product_2(v2 A,v2 B)
+{
+    f32 result;
+    
+    result = A.x*B.x + A.y*B.y;
+    
+    return result;
+}
+
 
 v3 
 lerp_v3(v3 A, v3 B, f32 t)
