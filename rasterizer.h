@@ -11,6 +11,10 @@ typedef struct v2
         {
             f32 x,y;
         };
+        struct 
+        {
+            f32 u,v;
+        };
     };
     
 }v2;
@@ -91,7 +95,6 @@ subtract_v3v3(v3 A, v3 B)
     return result;
 }
 
-
 v2
 subtract_v2v2(v2 A, v2 B)
 {
@@ -135,3 +138,12 @@ lerp_v3(v3 A, v3 B, f32 t)
     
     return result;
 }
+
+
+typedef struct 
+{
+    void *memory;
+    u32 file_size;
+}FileContent;
+
+FileContent win_read_file(char *filename);

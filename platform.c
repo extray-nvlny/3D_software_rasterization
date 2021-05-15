@@ -50,12 +50,6 @@ typedef struct
     s32 height;
 }WindowDim;
 
-typedef struct 
-{
-    void *memory;
-    u32 file_size;
-}FileContent;
-
 FileContent
 win_read_file(char *filename)
 {
