@@ -37,12 +37,8 @@ draw_flat_top_textured_tri(AppBackbuffer *backbuffer,
     f32 u_right = v0.uv.u;
     f32 v_right = v0.uv.v;
     
-    f32 dx = 1.0 / (v0.p.x - v2.p.x);
-    
-    
     s32 y_start = ceil(v0.p.y);
     s32 y_end   = ceil(v1.p.y);
-    
     
     for(s32 y = y_start;
         y < y_end;
@@ -50,6 +46,9 @@ draw_flat_top_textured_tri(AppBackbuffer *backbuffer,
     {
         s32 x0 = (s32)ceil(x_left);
         s32 x1 = (s32)ceil(x_right);
+        
+        
+        f32 dx = 1.0 / (x0 - x1);
         
         
         f32 du = (u_left - u_right) * dx;
@@ -75,8 +74,8 @@ draw_flat_top_textured_tri(AppBackbuffer *backbuffer,
             *dst_pixel++ = *src_pixel;
             
             
-            start_u -= du;
-            start_v -= dv;
+            start_u += du;
+            start_v += dv;
         }
         
         x_left += dxdy_left;
@@ -112,8 +111,6 @@ draw_flat_bottom_textured_tri(AppBackbuffer *backbuffer,
     f32 u_right = v0.uv.u;
     f32 v_right = v0.uv.v;
     
-    f32 dx = 1.0f / (v1.p.x - v2.p.x);
-    
     s32 y_start = ceil(v0.p.y);
     s32 y_end   = ceil(v2.p.y);
     
@@ -124,8 +121,12 @@ draw_flat_bottom_textured_tri(AppBackbuffer *backbuffer,
         s32 x0 = (s32)ceil(x_left);
         s32 x1 = (s32)ceil(x_right);
         
-        f32 du = (u_left - u_right) * dx;
-        f32 dv = (v_left - v_right) * dx;
+        
+        f32 dx = 1.0f / (x0 - x1);
+        
+        
+        f32 du = (u_left-u_right) * dx;
+        f32 dv = (v_left-v_right) * dx;
         
         f32 start_u = u_left;
         f32 start_v = v_left;
@@ -370,21 +371,21 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory)
     struct TexVertex tv0 = 
     {
         {300.0,100.0f,1.0f},
-        {0.0f,0.0f,}
+        {0.0f,1.0f,}
     };
     
     
     struct TexVertex tv1 = 
     {
         {400.0,200.0f,1.0f},
-        {1.0f,1.0f,}
+        {1.0f,0.0f,}
     };
     
     
     struct TexVertex tv2 = 
     {
         {300.0,200.0f,1.0f},
-        {1.0f,1.0f}
+        {0.0f,0.0f}
     };
     
     draw_flat_bottom_textured_tri(backbuffer, tv0, tv1, tv2, &g_test_bitmap);
@@ -392,21 +393,21 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory)
     struct TexVertex tv00 = 
     {
         {400.0,100.0f,1.0f},
-        {0.0f,0.0f,}
+        {1.0f,1.0f,}
     };
     
     
     struct TexVertex tv11 = 
     {
         {400.0,200.0f,1.0f},
-        {0.0f,0.0f,}
+        {1.0f,0.0f,}
     };
     
     
     struct TexVertex tv22 = 
     {
         {300.0,100.0f,1.0f},
-        {0.0f,0.0f}
+        {0.0f,1.0f}
     };
     
     draw_flat_top_textured_tri(backbuffer, tv00, tv11, tv22, &g_test_bitmap);
