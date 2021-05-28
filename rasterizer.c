@@ -1,6 +1,11 @@
 #include "rasterizer.h"
+#include "math.h"
 #include "assets.c"
 #include "texture.c"
+#include "camera.c"
+
+#define MAX_POLYS    128
+#define MAX_VERTICES 128
 
 typedef struct Vertex
 {
@@ -8,6 +13,87 @@ typedef struct Vertex
     v3 color;
 }Vertex;
 
+typedef struct Poly
+{
+    Vertex vertex[3];
+}Poly;
+
+typedef struct Object
+{
+    v3 world_p;
+    
+    v3 vertices[MAX_VERTICES];
+    u32 vertices_count;
+    
+    Poly polys[MAX_POLYS];
+    u32 poly_count;
+    
+    Bitmap *texture;
+}Object;
+global Object g_objects[1024];
+global u32 g_object_count;
+
+typedef struct PolySelf
+{
+    Vertex vertices[3];
+    
+    struct PolySelf *next;
+    struct PolySelf *prev;
+}PolySelf;
+
+typedef struct RenderList
+{
+    
+    PolySelf poly_pointers[128];
+    
+    // NOTE(shvayko): Actual data
+    PolySelf poly_data[128];
+    u32 poly_count;
+}RenderList;
+
+global RenderList g_render_list;
+
+void
+reset_render_list(RenderList *render_list)
+{
+    render_list->poly_count = 0;
+}
+
+void
+local_to_world_object(Object *object)
+{
+    // TODO(shvayko): Use matrix  here
+    for(u32 vertex_index = 0;
+        vertex_index < object->vertices_count;
+        vertex_index++)
+    {
+        v3 *current_vertex = &object->vertices[vertex_index];
+        *current_vertex = add_v3v3(object->world_p, *current_vertex);
+    }
+}
+
+/*
+void
+world_to_camera(Camera *camera ,Object *object)
+{
+    for(u32 vertex_index = 0;
+        vertex_index < object->vertices_count;
+        vertex_index++)
+    {
+        
+        v3 *current_vertex =  &object->vertices[vertex_index];
+        *current_vertex = mul_m4x4v4(camera->camera_matrix, *current_vertex);
+    }
+}
+*/
+
+void
+camera_to_clip(m4x4 projection_matrix,v4 *vertex)
+{
+    
+    
+    
+}
 
 u32
 rgb1_to_rgb255(v3 A)
@@ -209,56 +295,142 @@ draw_triangle(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
 global bool g_is_init = false;
 global Bitmap g_test_bitmap;
 
+Object*
+create_triangle_obj(v3 world_p, Vertex v0, Vertex v1, Vertex v2)
+{
+    Object *result = g_objects + g_object_count;
+    Poly poly = {0};
+    poly.vertex[0] = v0;
+    poly.vertex[1] = v1;
+    poly.vertex[2] = v2;
+    
+    result->world_p = world_p;
+    result->polys[result->poly_count] = poly;
+    
+    result->poly_count = 1;
+    result->vertices_count = 3;
+    
+    g_object_count++;
+    return result;
+}
+
+Object*
+create_cube_obj(v3 world_p, u32 size)
+{
+    Object *result = g_objects + g_object_count++;
+    
+    // NOTE(shvayko): cube has a 6 * 2 polygons, 32 vertices
+    
+    // NOTE(shvayko): The forward face
+    Vertex forward_face[6] = 
+    {
+        {
+            {-0.5f, -0.5f, 1.0f},
+            {1.0f,0.0f,0.0f},
+        },
+        {
+            {0.5f, 0.5f, 1.0f},
+            {1.0f,0.0, 0.0f},
+        },
+        {
+            {-0.5f, 0.0f, 1.0f},
+            {1.0f,  0.0f, 0.0f},
+        },
+        {
+            {-0.5f, -0.5f, 1.0f},
+            {0.0f,1.0f,0.0f},
+        },
+        {
+            {0.5f, - 0.5f, 1.0f},
+            {0.0f,1.0f,0.0f},
+        },
+        {
+            {0.5f, 0.5f, 1.0f},
+            {0.0f,1.0, 0.0f},
+        },
+    };
+    
+    result->world_p = world_p;
+    result->poly_count = 0;
+    result->vertices_count = 6;
+    for(u32 vertex_index = 0;
+        vertex_index < 6;
+        vertex_index += 3)
+    {
+        result->vertices[vertex_index + 0] = forward_face[vertex_index + 0].p;
+        result->vertices[vertex_index + 1] = forward_face[vertex_index + 1].p;
+        result->vertices[vertex_index + 2] = forward_face[vertex_index + 2].p;
+        result->polys[result->poly_count].vertex[0] = forward_face[vertex_index + 0];
+        result->polys[result->poly_count].vertex[1] = forward_face[vertex_index + 1];
+        result->polys[result->poly_count].vertex[2] = forward_face[vertex_index + 2];
+        result->poly_count++;
+    }
+    
+    return result;
+}
+
 void 
 update_and_render(AppBackbuffer *backbuffer, AppMemory *memory)
 {
     if(!g_is_init)
     {
         g_test_bitmap = load_bitmap("test_texture.bmp");
+#if 0
+        struct Vertex v0 = 
+        {
+            {300.0,100.0f,1.0f},
+            {1.0f,0.0f,0.0f},
+        };
+        
+        struct Vertex v1 = 
+        {
+            {400.0,200.0f,1.0f},
+            {1.0f,0.0f,1.0f},
+        };
+        
+        struct Vertex v2 = 
+        {
+            {300.0,200.0f,1.0f},
+            {1.0f,1.0f,0.0f},
+        };
+        
+        g_objects[g_object_count] = *create_triangle_obj(v3f(0.0f,0.0f,0.0f),v0,v1,v2);
+#else
+        g_objects[g_object_count] = *create_cube_obj(v3f(0.0f,0.0f,0.0f), 0.5f);
+#endif
         
         g_is_init = true;
     }
-    
-    struct TexVertex tv0 = 
+#if 0 
+    f32 tangent = tanf(90.0f*0.5f);
+    m4x4 projection_matrix = 
     {
-        {300.0,100.0f,1.0f},
-        {0.0f,1.0f,}
+        
     };
-    
-    
-    struct TexVertex tv1 = 
+#endif
+    // NOTE(shvayko): draw test non-textured object
+    for(u32 object_index = 0;
+        object_index < g_object_count;
+        object_index++)
     {
-        {400.0,200.0f,1.0f},
-        {1.0f,0.0f,}
-    };
-    
-    
-    struct TexVertex tv2 = 
-    {
-        {300.0,200.0f,1.0f},
-        {0.0f,0.0f}
-    };
-    
-    struct TexVertex tv00 = 
-    {
-        {400.0,100.0f,1.0f},
-        {1.0f,1.0f,}
-    };
-    
-    
-    struct TexVertex tv11 = 
-    {
-        {400.0,200.0f,1.0f},
-        {1.0f,0.0f,}
-    };
-    
-    
-    struct TexVertex tv22 = 
-    {
-        {300.0,100.0f,1.0f},
-        {0.0f,1.0f}
-    };
-    
-    draw_tex_tri(backbuffer, tv0, tv1, tv2, &g_test_bitmap);
-    draw_tex_tri(backbuffer, tv00, tv11, tv22, &g_test_bitmap);
+        Object *object = g_objects + object_index;
+        for(u32 poly_index = 0;
+            poly_index < object->poly_count;
+            poly_index++)
+        {
+            Poly *polygon = object->polys + poly_index;
+            
+            Vertex v0, v1, v2;
+            v0 = polygon->vertex[0];
+            v1 = polygon->vertex[1];
+            v2 = polygon->vertex[2];
+#if 0
+            v4 clip_v0,clip_v1,clip_v2;
+            camera_to_clip(projection_matrix, &clip_vo);
+            camera_to_clip(projection_matrix, &clip_v1);
+            camera_to_clip(projection_matrix, &clip_v2);
+#endif
+            draw_triangle(backbuffer, v0, v1, v2);
+        }
+    }
 }

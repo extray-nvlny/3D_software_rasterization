@@ -1,4 +1,3 @@
-
 typedef struct TexVertex
 {
     v3 p;
@@ -207,6 +206,7 @@ draw_tex_tri(AppBackbuffer *backbuffer, TexVertex v0, TexVertex v1, TexVertex v2
         // NOTE(shvayko): Find new vertex
         f32 t = (v1.p.y - v0.p.y) / (v2.p.y - v0.p.y);
         v3 new_vertex_p = lerp_v3(v0.p, v2.p, t);
+        // TODO(shvayko): U V  interpolation
         struct TexVertex new_vertex = {new_vertex_p};
         
         // NOTE(shvayko): Decide what major triangle is
