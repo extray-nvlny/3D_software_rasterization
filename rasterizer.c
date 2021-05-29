@@ -7,6 +7,9 @@
 #define MAX_POLYS    128
 #define MAX_VERTICES 128
 
+#define VIEWPORT_WIDTH  800
+#define VIEWPORT_HEIGHT 600
+
 typedef struct Vertex
 {
     v3 p;
@@ -87,12 +90,71 @@ world_to_camera(Camera *camera ,Object *object)
 }
 */
 
+m4x4
+build_perspective_projection_matrix(f32 width,f32 height,f32 fov, 
+                                    f32 near,f32 far)
+{   
+    // NOTE(shvayko): near specifies the distance from the viewer to the near clipping plane (always positive). 
+    // NOTE(shvayko): far specifies the distance from the viewer to the far clipping plane (always positive). 
+    
+    f32 ar = width / height;
+    f32 tangent = tanf(DEG_TO_RAD(fov*0.5f));
+    f32 d = (-near-far) / (near-far);
+    f32 e = (2.0f*far*near) / (near - far);
+    
+    // NOTE(shvatko): ROW MAJOR
+    m4x4 matrix = 
+    {
+        1.0f/(tangent*ar),0.0f,0.0f,0.0f,
+        0.0f,1.0f / tangent,0.0f,0.0f,
+        0.0f,0.0f,  d, e,
+        0.0f,0.0f,  1.0f,0.0f,
+    };
+    
+#if 0
+    v4 test  = mul_m4x4v4(matrix,v4f(0.0f,0.0f, near,1.0f));
+    v4 test0 = mul_m4x4v4(matrix,v4f(0.0f,0.0f, far, 1.0f));
+    
+    v3 ndc  = v3f(test.x / test.w,test.y / test.w,test.z / test.w);
+    f32 w = test.z / test.w;
+    v3 ndc0 = v3f(test0.x / test0.w,test0.y / test0.w,test0.z / test0.w);
+    f32 wo = test0.z / test0.w;
+#endif
+    
+    return matrix;
+}
+
 void
-camera_to_clip(m4x4 projection_matrix,v4 *vertex)
+perspective_divide(const v4 *clip_v0, const v4 *clip_v1, const v4 *clip_v2,
+                   v3 *ndc_v0,v3 *ndc_v1, v3 *ndc_v2)
 {
+    *ndc_v0 = v3f(clip_v0->x / clip_v0->w,clip_v0->y / clip_v0->w,clip_v0->z / clip_v0->w);
+    *ndc_v1 = v3f(clip_v1->x / clip_v1->w,clip_v1->y / clip_v1->w,clip_v1->z / clip_v1->w);
+    *ndc_v2 = v3f(clip_v2->x / clip_v2->w,clip_v2->y / clip_v2->w,clip_v2->z / clip_v2->w);
+}
+
+void
+camera_to_clip(m4x4 projection_matrix,v4 *out_vertex)
+{
+    ASSERT(out_vertex->w == 1.0f);
+    *out_vertex = mul_m4x4v4(projection_matrix,*out_vertex);
+}
+
+void
+viewport(const v3 *ndc_v0,const v3 *ndc_v1,const v3 *ndc_v2,
+         v3 *screen_v0,v3 *screen_v1,v3 *screen_v2)
+{
+    screen_v0->x = (ndc_v0->x + 1.0f)*VIEWPORT_WIDTH*0.5f;
+    screen_v0->y = (ndc_v0->y + 1.0f)*VIEWPORT_HEIGHT*0.5f;
+    screen_v0->z = ndc_v0->z;
     
+    screen_v1->x = (ndc_v1->x + 1.0f)*VIEWPORT_WIDTH*0.5f;
+    screen_v1->y = (ndc_v1->y + 1.0f)*VIEWPORT_HEIGHT*0.5f;
+    screen_v1->z = ndc_v1->z;
     
-    
+    screen_v2->x = (ndc_v2->x + 1.0f)*VIEWPORT_WIDTH*0.5f;
+    screen_v2->y = (ndc_v2->y + 1.0f)*VIEWPORT_HEIGHT*0.5f;
+    screen_v2->z = ndc_v2->z;
 }
 
 u32
@@ -333,7 +395,7 @@ create_cube_obj(v3 world_p, u32 size)
             {1.0f,0.0, 0.0f},
         },
         {
-            {-0.5f, 0.0f, 1.0f},
+            {-0.5f, 0.5f, 1.0f},
             {1.0f,  0.0f, 0.0f},
         },
         {
@@ -341,7 +403,7 @@ create_cube_obj(v3 world_p, u32 size)
             {0.0f,1.0f,0.0f},
         },
         {
-            {0.5f, - 0.5f, 1.0f},
+            {0.5f, -0.5f, 1.0f},
             {0.0f,1.0f,0.0f},
         },
         {
@@ -401,13 +463,15 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory)
         
         g_is_init = true;
     }
-#if 0 
-    f32 tangent = tanf(90.0f*0.5f);
-    m4x4 projection_matrix = 
-    {
-        
-    };
-#endif
+    
+    
+    m4x4 projection_matrix = build_perspective_projection_matrix(VIEWPORT_WIDTH,VIEWPORT_HEIGHT,90, 1.0f, 10.0f);
+    
+    // NOTE(shvayko): Test input
+    
+    
+    local_to_world_object(&g_objects[0]);
+    
     // NOTE(shvayko): draw test non-textured object
     for(u32 object_index = 0;
         object_index < g_object_count;
@@ -424,12 +488,33 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory)
             v0 = polygon->vertex[0];
             v1 = polygon->vertex[1];
             v2 = polygon->vertex[2];
-#if 0
-            v4 clip_v0,clip_v1,clip_v2;
-            camera_to_clip(projection_matrix, &clip_vo);
+            //NOTE(shvaykO): world space - to - camera space
+            
+            //NOTE(shvayko): camera space - to - clip space
+            
+            //NOTE(shvayko): clipping
+            
+            v4 clip_v0 = v4f(v0.p.x,v0.p.y,v0.p.z,1.0f);
+            v4 clip_v1 = v4f(v1.p.x,v1.p.y,v1.p.z,1.0f);
+            v4 clip_v2 = v4f(v2.p.x,v2.p.y,v2.p.z,1.0f);
+            
+            camera_to_clip(projection_matrix, &clip_v0);
             camera_to_clip(projection_matrix, &clip_v1);
             camera_to_clip(projection_matrix, &clip_v2);
-#endif
+            
+            //NOTE(shvayko): clip space - to - NDC space
+            
+            v3 ndc_v0,ndc_v1,ndc_v2;
+            perspective_divide(&clip_v0,&clip_v1,&clip_v2,&ndc_v0,&ndc_v1,&ndc_v2);
+            
+            //NOTE(shvayko): NDC space - to - screen space
+            v3 screen_v0,screen_v1,screen_v2;
+            viewport(&ndc_v0,&ndc_v1,&ndc_v2,&screen_v0,&screen_v1,&screen_v2);
+            
+            v0.p = screen_v0;
+            v1.p = screen_v1;
+            v2.p = screen_v2;
+            
             draw_triangle(backbuffer, v0, v1, v2);
         }
     }
