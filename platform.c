@@ -1,26 +1,22 @@
+#include <stdlib.h>
+#include <stdio.h>
 #include "platform.h"
 #include "rasterizer.c"
 #include <windows.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include "string.h"
 
 #define MAX_KEYS 256
 #define BYTES_PER_PIXEL 4
 
-typedef enum
+typedef enum Keycodes
 {
     Action_up     = 0x57,
     Action_down   = 0x53,
     Action_left   = 0x41,
-    Action_right  = 0x44
+    Action_right  = 0x44,
+    
+    Action_count,
 }Keycodes;
-
-typedef struct
-{
-    bool down;
-    bool pressed;
-    bool released;
-}DigitalButton;
 
 // TODO(shvayko): struct for those guys 
 global DigitalButton g_keys[MAX_KEYS];
@@ -32,6 +28,7 @@ global s32           g_mouse_pos_x;
 global s32           g_mouse_pos_y;
 global bool g_app_is_running;
 global bool g_raw_input_registered;
+global Keyboard g_keyboard;
 
 typedef struct 
 {
@@ -205,7 +202,7 @@ update_digital_button(DigitalButton *key,bool is_down)
 }
 
 void 
-pull_keyboard(void)
+pull_keyboard()
 {
     BYTE kb_states[MAX_KEYS];
     if(!GetKeyboardState(kb_states))
@@ -424,8 +421,9 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd)
                 DispatchMessage(&message);
             }
             
-            pull_keyboard();
+            pull_keyboard(&g_keyboard);
             
+#if 1
             if(g_keys[Action_up].pressed)
             {
                 OutputDebugStringA("Button 'W' was pressed\n");
@@ -460,7 +458,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd)
             {
                 OutputDebugStringA("Right mouse button is released!\n");
             }
-            
+#endif
             WindowDim dim = get_window_dim(window);
             
             AppBackbuffer app_backbuffer = {0};
@@ -468,7 +466,20 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd)
             app_backbuffer.height = g_backbuffer.height;
             app_backbuffer.stride = g_backbuffer.stride;
             app_backbuffer.memory = g_backbuffer.memory;
-            update_and_render(&app_backbuffer, &memory);
+#if 1
+            g_keyboard.button_right = g_keys[Action_right];
+            g_keyboard.button_left = g_keys[Action_left];
+            g_keyboard.button_down = g_keys[Action_down];
+            g_keyboard.button_up = g_keys[Action_up];
+#else
+            for(s32 key_index = 0;
+                key_index < Action_count;
+                key_index++)
+            {
+                g_keyboard.e[key_index] = g_keys[key_index];
+            }
+#endif
+            update_and_render(&app_backbuffer, &memory, &g_keyboard);
             
             blit_to_screen(device_context,&g_backbuffer,dim.width,dim.height);
             

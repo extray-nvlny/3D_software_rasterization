@@ -32,12 +32,33 @@ typedef double   f64;
 
 typedef struct
 {
+    bool down;
+    bool pressed;
+    bool released;
+}DigitalButton;
+
+typedef struct Keyboard
+{
+    union
+    {
+        DigitalButton e[4];
+        struct
+        {
+            DigitalButton button_up;
+            DigitalButton button_down;
+            DigitalButton button_left;
+            DigitalButton button_right;
+        };
+    };
+}Keyboard;
+
+typedef struct
+{
     void *memory;
     s32 width;
     s32 height;
     s32 stride;
 }AppBackbuffer;
-
 
 typedef struct
 {
@@ -49,5 +70,6 @@ typedef struct
     bool is_memory_init;
 }AppMemory;
 
+void *memset(void *, int,size_t);
 
 #endif //PLATFORM_H

@@ -4,9 +4,11 @@
 #include "texture.c"
 #include "camera.c"
 
+
 #define MAX_POLYS    128
 #define MAX_VERTICES 128
 
+// TODO(shvayko): Are they constants?
 #define VIEWPORT_WIDTH  800
 #define VIEWPORT_HEIGHT 600
 
@@ -18,7 +20,9 @@ typedef struct Vertex
 
 typedef struct Poly
 {
-    Vertex vertex[3];
+    v3 *vertices_list;
+    
+    s32 vertex[3];
 }Poly;
 
 typedef struct Object
@@ -51,10 +55,17 @@ typedef struct RenderList
     
     // NOTE(shvayko): Actual data
     PolySelf poly_data[128];
+    
     u32 poly_count;
 }RenderList;
 
 global RenderList g_render_list;
+
+void
+clear_backbuffer(AppBackbuffer *backbuffer)
+{
+    memset(backbuffer->memory,0,backbuffer->width*backbuffer->height*4);
+}
 
 void
 reset_render_list(RenderList *render_list)
@@ -98,15 +109,16 @@ build_perspective_projection_matrix(f32 width,f32 height,f32 fov,
     // NOTE(shvayko): far specifies the distance from the viewer to the far clipping plane (always positive). 
     
     f32 ar = width / height;
-    f32 tangent = tanf(DEG_TO_RAD(fov*0.5f));
+    f32 a = 1.0f / (tanf(DEG_TO_RAD(fov*0.5f))*ar);
+    f32 b = 1.0f / a;
     f32 d = (-near-far) / (near-far);
     f32 e = (2.0f*far*near) / (near - far);
     
     // NOTE(shvatko): ROW MAJOR
     m4x4 matrix = 
     {
-        1.0f/(tangent*ar),0.0f,0.0f,0.0f,
-        0.0f,1.0f / tangent,0.0f,0.0f,
+        a,0.0f,0.0f,0.0f,
+        0.0f,b,0.0f,0.0f,
         0.0f,0.0f,  d, e,
         0.0f,0.0f,  1.0f,0.0f,
     };
@@ -235,10 +247,6 @@ draw_flat_bottom_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
         y <= y_end;
         y++)
     {
-        if(!((y+1) <= y_end))
-        {
-            int stop = 6;
-        }
         
         x_start = v0.p.x + (y-y_start)*dxy_left;
         x_end   = v0.p.x + (y-y_start)*dxy_right;
@@ -362,10 +370,11 @@ create_triangle_obj(v3 world_p, Vertex v0, Vertex v1, Vertex v2)
 {
     Object *result = g_objects + g_object_count;
     Poly poly = {0};
+#if 0
     poly.vertex[0] = v0;
     poly.vertex[1] = v1;
     poly.vertex[2] = v2;
-    
+#endif
     result->world_p = world_p;
     result->polys[result->poly_count] = poly;
     
@@ -381,58 +390,61 @@ create_cube_obj(v3 world_p, u32 size)
 {
     Object *result = g_objects + g_object_count++;
     
-    // NOTE(shvayko): cube has a 6 * 2 polygons, 32 vertices
+    // NOTE(shvayko): cube has a 6 * 2 polygons, 36 vertices
+    result->world_p = world_p;
+    result->poly_count = 2; // 12
+    result->vertices_count = 6; // 36
     
-    // NOTE(shvayko): The forward face
-    Vertex forward_face[6] = 
+    // NOTE(shvayko): Vertices array
+    v3 temp_coordinates[6] = 
     {
-        {
-            {-0.5f, -0.5f, 1.0f},
-            {1.0f,0.0f,0.0f},
-        },
-        {
-            {0.5f, 0.5f, 1.0f},
-            {1.0f,0.0, 0.0f},
-        },
-        {
-            {-0.5f, 0.5f, 1.0f},
-            {1.0f,  0.0f, 0.0f},
-        },
-        {
-            {-0.5f, -0.5f, 1.0f},
-            {0.0f,1.0f,0.0f},
-        },
-        {
-            {0.5f, -0.5f, 1.0f},
-            {0.0f,1.0f,0.0f},
-        },
-        {
-            {0.5f, 0.5f, 1.0f},
-            {0.0f,1.0, 0.0f},
-        },
+        {-0.5f, -0.5f, 1.0f},
+        {0.5f, 0.5f, 1.0f},
+        {-0.5f, 0.5f, 1.0f},
+        {0.5f, -0.5f, 1.0f},
     };
     
-    result->world_p = world_p;
-    result->poly_count = 0;
-    result->vertices_count = 6;
-    for(u32 vertex_index = 0;
-        vertex_index < 6;
-        vertex_index += 3)
+    v3 temp_colors[6] = 
     {
-        result->vertices[vertex_index + 0] = forward_face[vertex_index + 0].p;
-        result->vertices[vertex_index + 1] = forward_face[vertex_index + 1].p;
-        result->vertices[vertex_index + 2] = forward_face[vertex_index + 2].p;
-        result->polys[result->poly_count].vertex[0] = forward_face[vertex_index + 0];
-        result->polys[result->poly_count].vertex[1] = forward_face[vertex_index + 1];
-        result->polys[result->poly_count].vertex[2] = forward_face[vertex_index + 2];
-        result->poly_count++;
+        {1.0f,0.0f,0.0f},
+        {1.0f,0.0,0.0f},
+        {1.0f,0.0f,0.0f},
+        {0.0f,1.0f,0.0f},
+        {0.0f,1.0f,0.0f},
+        {0.0f,1.0f, 0.0f},
+    };
+    
+    for(u32 vertex_index = 0;
+        vertex_index < result->vertices_count;
+        vertex_index++)
+    {
+        result->vertices[vertex_index] = temp_coordinates[vertex_index];
+        result->vertices[vertex_index] = temp_coordinates[vertex_index];
+        result->vertices[vertex_index] = temp_coordinates[vertex_index];
+        
     }
+    // NOTE(shvayko): index buffer
+    s32 temp_polys_indices[6] = 
+    {
+        0,1,2, 0,3,1  // 1 and 2 polygons
+    };
+    
+    for(u32 poly_index = 0;
+        poly_index < result->poly_count;
+        poly_index++)
+    {
+        result->polys[poly_index].vertices_list = result->vertices;
+        result->polys[poly_index].vertex[0] = temp_polys_indices[poly_index * 3 + 0];
+        result->polys[poly_index].vertex[1] = temp_polys_indices[poly_index * 3 + 1];
+        result->polys[poly_index].vertex[2] = temp_polys_indices[poly_index * 3 + 2];
+    }
+    
     
     return result;
 }
 
 void 
-update_and_render(AppBackbuffer *backbuffer, AppMemory *memory)
+update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
 {
     if(!g_is_init)
     {
@@ -464,13 +476,33 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory)
         g_is_init = true;
     }
     
+    clear_backbuffer(backbuffer);
     
-    m4x4 projection_matrix = build_perspective_projection_matrix(VIEWPORT_WIDTH,VIEWPORT_HEIGHT,90, 1.0f, 10.0f);
-    
+    f32 near_plane = 1.0f;
+    f32 far_plane  = 10.0f;
+    m4x4 projection_matrix = build_perspective_projection_matrix(VIEWPORT_WIDTH,VIEWPORT_HEIGHT,90, 
+                                                                 near_plane, far_plane);
+    v3 dp = v3f(0.0f,0.0f,0.0f);
+    if(input->button_right.down)
+    {
+        dp.x += 0.1f;
+    }
+    if(input->button_left.down)
+    {
+        dp.x -= 0.1f;
+    }
+    if(input->button_up.down)
+    {
+        dp.z += 0.1f;
+    }
+    if(input->button_down.down)
+    {
+        dp.z -= 0.1f;
+    }
+    g_objects[0].world_p = add_v3v3(g_objects[0].world_p,dp); 
     // NOTE(shvayko): Test input
     
-    
-    local_to_world_object(&g_objects[0]);
+    //local_to_world_object(&g_objects[0]);
     
     // NOTE(shvayko): draw test non-textured object
     for(u32 object_index = 0;
@@ -484,19 +516,27 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory)
         {
             Poly *polygon = object->polys + poly_index;
             
-            Vertex v0, v1, v2;
-            v0 = polygon->vertex[0];
-            v1 = polygon->vertex[1];
-            v2 = polygon->vertex[2];
-            //NOTE(shvaykO): world space - to - camera space
+            s32 sv0, sv1, sv2;
+            sv0 = polygon->vertex[0];
+            sv1 = polygon->vertex[1];
+            sv2 = polygon->vertex[2];
             
+            v3 v0,v1,v2;
+            v0 = polygon->vertices_list[sv0];
+            v1 = polygon->vertices_list[sv1];
+            v2 = polygon->vertices_list[sv2];
+            
+            //NOTE(shvaykO): world space - to - camera space
+            v0 = add_v3v3(g_objects[0].world_p,v0); 
+            v1 = add_v3v3(g_objects[0].world_p,v1); 
+            v2 = add_v3v3(g_objects[0].world_p,v2); 
             //NOTE(shvayko): camera space - to - clip space
             
             //NOTE(shvayko): clipping
             
-            v4 clip_v0 = v4f(v0.p.x,v0.p.y,v0.p.z,1.0f);
-            v4 clip_v1 = v4f(v1.p.x,v1.p.y,v1.p.z,1.0f);
-            v4 clip_v2 = v4f(v2.p.x,v2.p.y,v2.p.z,1.0f);
+            v4 clip_v0 = v4f(v0.x,v0.y,v0.z,1.0f);
+            v4 clip_v1 = v4f(v1.x,v1.y,v1.z,1.0f);
+            v4 clip_v2 = v4f(v2.x,v2.y,v2.z,1.0f);
             
             camera_to_clip(projection_matrix, &clip_v0);
             camera_to_clip(projection_matrix, &clip_v1);
@@ -511,11 +551,11 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory)
             v3 screen_v0,screen_v1,screen_v2;
             viewport(&ndc_v0,&ndc_v1,&ndc_v2,&screen_v0,&screen_v1,&screen_v2);
             
-            v0.p = screen_v0;
-            v1.p = screen_v1;
-            v2.p = screen_v2;
+            Vertex vv0 = {screen_v0,v3f(1.0f,0.0f,0.0f)};
+            Vertex vv1 = {screen_v1,v3f(1.0f,0.0f,0.0f)};
+            Vertex vv2 = {screen_v2,v3f(1.0f,0.0f,0.0f)};
             
-            draw_triangle(backbuffer, v0, v1, v2);
+            draw_triangle(backbuffer, vv0, vv1, vv2);
         }
     }
 }
