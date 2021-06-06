@@ -18,12 +18,20 @@ typedef struct Vertex
     v3 color;
 }Vertex;
 
+#if 0
 typedef struct Poly
 {
     v3 *vertices_list;
+    v3 color;
     
     s32 vertex[3];
 }Poly;
+#else
+typedef struct Poly
+{
+    Vertex vertices[3];
+}Poly;
+#endif
 
 typedef struct Object
 {
@@ -233,9 +241,9 @@ draw_flat_bottom_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
     //                A top edge, is an edge that is exactly horizontal and is above the             //                other edges.
     //                A left edge, is an edge that is not exactly horizontal and is on the //                left side of the triangle. 
     
-    f32 height =  (v2.p.y - v0.p.y);
-    f32 dxy_left  = (v2.p.x - v0.p.x) / height;
-    f32 dxy_right = (v1.p.x - v0.p.x) / height;
+    f32 height =  1.0f / (v2.p.y - v0.p.y);
+    f32 dxy_left  = (v2.p.x - v0.p.x) * height;
+    f32 dxy_right = (v1.p.x - v0.p.x) * height;
     
     f32 x_start = v0.p.x;
     f32 x_end   = v0.p.x;
@@ -266,9 +274,9 @@ draw_flat_top_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
     //                A top edge, is an edge that is exactly horizontal and is above the             //                other edges.
     //                A left edge, is an edge that is not exactly horizontal and is on the //                left side of the triangle. 
     
-    f32 height =  (v1.p.y - v0.p.y);
-    f32 dxy_left  = (v1.p.x - v2.p.x) / height;
-    f32 dxy_right = (v1.p.x - v0.p.x) / height;
+    f32 height =  1.0f / (v1.p.y - v0.p.y);
+    f32 dxy_left  = (v1.p.x - v2.p.x) * height;
+    f32 dxy_right = (v1.p.x - v0.p.x) * height;
     
     f32 x_start = v2.p.x;
     f32 x_end   = v0.p.x;
@@ -388,59 +396,113 @@ create_triangle_obj(v3 world_p, Vertex v0, Vertex v1, Vertex v2)
 Object*
 create_cube_obj(v3 world_p, u32 size)
 {
-    Object *result = g_objects + g_object_count++;
+    Object *object = g_objects + g_object_count++;
     
     // NOTE(shvayko): cube has a 6 * 2 polygons, 36 vertices
-    result->world_p = world_p;
-    result->poly_count = 2; // 12
-    result->vertices_count = 6; // 36
+    object->world_p = world_p;
+    object->poly_count = 12;
+    object->vertices_count = 36;
     
     // NOTE(shvayko): Vertices array
-    v3 temp_coordinates[6] = 
-    {
-        {-0.5f, -0.5f, 1.0f},
-        {0.5f, 0.5f, 1.0f},
-        {-0.5f, 0.5f, 1.0f},
-        {0.5f, -0.5f, 1.0f},
-    };
     
-    v3 temp_colors[6] = 
+    f32 vertices_buffer[] = 
     {
-        {1.0f,0.0f,0.0f},
-        {1.0f,0.0,0.0f},
-        {1.0f,0.0f,0.0f},
-        {0.0f,1.0f,0.0f},
-        {0.0f,1.0f,0.0f},
-        {0.0f,1.0f, 0.0f},
+        // NOTE(shvayko): VERTICES - COLORS - NORMALS    
+        
+        // forward face
+        -0.5f, -0.5f, 1.0f, 1.0f,1.0f,0.0f,
+        0.5f, 0.5f, 1.0f,   1.0f,0.0f,0.0f,
+        -0.5f, 0.5f, 1.0f,  1.0f,0.0f,1.0f,
+        
+        0.5f, -0.5f, 1.0f,  1.0f,1.0f,0.0f,
+        0.5f, 0.5f, 1.0f,   0.0f,1.0f,0.0f,
+        -0.5f, -0.5f, 1.0f, 0.0f,1.0f,1.0f,
+        
+        // right face
+        0.5f, -0.5f, 1.0f,  0.0f,1.0f,0.0f,
+        0.5f, 0.5f,  2.0f,  0.0f,1.0f,0.0f,
+        0.5f, 0.5f,  1.0f,  0.0f,1.0f,0.0f,
+        
+        0.5f,-0.5f, 2.0f,   0.0f,0.0f,1.0f,
+        0.5f, 0.5f, 2.0f,   0.0f,0.0f,1.0f,
+        0.5f,-0.5f, 1.0f,   0.0f,0.0f,1.0f,
+        
+        // back face
+        
+        -0.5f, -0.5f, 2.0f, 1.0f,1.0f,0.0f,
+        0.5f, 0.5f,   2.0f, 1.0f,0.0f,0.0f,
+        -0.5f, 0.5f,  2.0f, 1.0f,0.0f,1.0f,
+        
+        0.5f, -0.5f,  2.0f, 1.0f,1.0f,0.0f,
+        0.5f, 0.5f,   2.0f, 0.0f,1.0f,0.0f,
+        -0.5f, -0.5f, 2.0f, 0.0f,1.0f,1.0f,
+        
+        // left face
+        -0.5f, -0.5f, 1.0f, 1.0f,0.2f,1.0f,
+        -0.5f, 0.5f,  2.0f, 1.0f,0.2f,1.0f,
+        -0.5f, 0.5f,  1.0f, 1.0f,0.2f,1.0f,
+        
+        -0.5f, -0.5f, 2.0f, 0.0f,0.4f,1.0f,
+        -0.5f, 0.5f,  2.0f, 0.0f,0.4f,1.0f,
+        -0.5f, -0.5f, 1.0f, 0.0f,0.4f,1.0f,
+        
+        // top face
+        0.5f,-0.5f, 2.0f, 1.0f,0.0f,0.0f,
+        0.5f,-0.5f, 1.0f, 1.0f,0.0f,0.0f,
+        -0.5f, -0.5f, 1.0f, 0.0f,0.4f,1.0f,
+        
+        0.5f,-0.5f, 2.0f, 1.0f,0.0f,1.0f,
+        -0.5f, -0.5f, 1.0f, 1.0f,0.0f,1.0f,
+        -0.5f, -0.5f, 2.0f, 0.0f,0.0f,1.0f,
+        
+        // bottom face
+        
+        0.5f,0.5f, 2.0f, 1.0f,1.0f,1.0f,
+        0.5f,0.5f, 1.0f, 1.0f,1.0f,1.0f,
+        -0.5f,0.5f, 1.0f, 1.0f,1.0f,1.0f,
+        
+        0.5f,0.5f, 2.0f,  0.0f,1.0f,0.0f,
+        -0.5f,0.5f, 1.0f, 0.0f,1.0f,0.0f,
+        -0.5f,0.5f, 2.0f, 0.0f,1.0f,0.0f,
+        
     };
     
     for(u32 vertex_index = 0;
-        vertex_index < result->vertices_count;
+        vertex_index < object->vertices_count;
         vertex_index++)
     {
-        result->vertices[vertex_index] = temp_coordinates[vertex_index];
-        result->vertices[vertex_index] = temp_coordinates[vertex_index];
-        result->vertices[vertex_index] = temp_coordinates[vertex_index];
+        f32 x = vertices_buffer[vertex_index * 6 + 0];
+        f32 y = vertices_buffer[vertex_index * 6 + 1];
+        f32 z = vertices_buffer[vertex_index * 6 + 2];
+        v3 vertex = v3f(x,y,z);
+        object->vertices[vertex_index] = vertex;
         
     }
-    // NOTE(shvayko): index buffer
-    s32 temp_polys_indices[6] = 
-    {
-        0,1,2, 0,3,1  // 1 and 2 polygons
-    };
     
     for(u32 poly_index = 0;
-        poly_index < result->poly_count;
+        poly_index < object->poly_count;
         poly_index++)
     {
-        result->polys[poly_index].vertices_list = result->vertices;
-        result->polys[poly_index].vertex[0] = temp_polys_indices[poly_index * 3 + 0];
-        result->polys[poly_index].vertex[1] = temp_polys_indices[poly_index * 3 + 1];
-        result->polys[poly_index].vertex[2] = temp_polys_indices[poly_index * 3 + 2];
+        for(u32 vertex_index = 0;
+            vertex_index < 3;
+            vertex_index++)
+        {
+            f32 x = vertices_buffer[(poly_index*18) + vertex_index * 6 + 0];
+            f32 y = vertices_buffer[(poly_index*18) + vertex_index * 6 + 1];
+            f32 z = vertices_buffer[(poly_index*18) + vertex_index * 6 + 2];
+            
+            f32 r = vertices_buffer[(poly_index*18) + vertex_index * 6 + 3];
+            f32 g = vertices_buffer[(poly_index*18) + vertex_index * 6 + 4];
+            f32 b = vertices_buffer[(poly_index*18) + vertex_index * 6 + 5];
+            
+            v3 vertex = v3f(x,y,z);
+            v3 color = v3f(r,g,b);
+            object->polys[poly_index].vertices[vertex_index].p = vertex;
+            object->polys[poly_index].vertices[vertex_index].color = color;
+        }
     }
     
-    
-    return result;
+    return object;
 }
 
 void 
@@ -449,29 +511,8 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
     if(!g_is_init)
     {
         g_test_bitmap = load_bitmap("test_texture.bmp");
-#if 0
-        struct Vertex v0 = 
-        {
-            {300.0,100.0f,1.0f},
-            {1.0f,0.0f,0.0f},
-        };
         
-        struct Vertex v1 = 
-        {
-            {400.0,200.0f,1.0f},
-            {1.0f,0.0f,1.0f},
-        };
-        
-        struct Vertex v2 = 
-        {
-            {300.0,200.0f,1.0f},
-            {1.0f,1.0f,0.0f},
-        };
-        
-        g_objects[g_object_count] = *create_triangle_obj(v3f(0.0f,0.0f,0.0f),v0,v1,v2);
-#else
         g_objects[g_object_count] = *create_cube_obj(v3f(0.0f,0.0f,0.0f), 0.5f);
-#endif
         
         g_is_init = true;
     }
@@ -502,7 +543,7 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
     g_objects[0].world_p = add_v3v3(g_objects[0].world_p,dp); 
     // NOTE(shvayko): Test input
     
-    //local_to_world_object(&g_objects[0]);
+    local_to_world_object(&g_objects[0]);
     
     // NOTE(shvayko): draw test non-textured object
     for(u32 object_index = 0;
@@ -516,27 +557,24 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
         {
             Poly *polygon = object->polys + poly_index;
             
-            s32 sv0, sv1, sv2;
-            sv0 = polygon->vertex[0];
-            sv1 = polygon->vertex[1];
-            sv2 = polygon->vertex[2];
-            
-            v3 v0,v1,v2;
-            v0 = polygon->vertices_list[sv0];
-            v1 = polygon->vertices_list[sv1];
-            v2 = polygon->vertices_list[sv2];
+            Vertex v0,v1,v2;
+            v0 = polygon->vertices[0];
+            v1 = polygon->vertices[1];
+            v2 = polygon->vertices[2];
             
             //NOTE(shvaykO): world space - to - camera space
-            v0 = add_v3v3(g_objects[0].world_p,v0); 
-            v1 = add_v3v3(g_objects[0].world_p,v1); 
-            v2 = add_v3v3(g_objects[0].world_p,v2); 
+            
+            //v0 = add_v3v3(g_objects[0].world_p,v0); 
+            //v1 = add_v3v3(g_objects[0].world_p,v1); 
+            //v2 = add_v3v3(g_objects[0].world_p,v2); 
+            
             //NOTE(shvayko): camera space - to - clip space
             
             //NOTE(shvayko): clipping
             
-            v4 clip_v0 = v4f(v0.x,v0.y,v0.z,1.0f);
-            v4 clip_v1 = v4f(v1.x,v1.y,v1.z,1.0f);
-            v4 clip_v2 = v4f(v2.x,v2.y,v2.z,1.0f);
+            v4 clip_v0 = v4f(v0.p.x,v0.p.y,v0.p.z,1.0f);
+            v4 clip_v1 = v4f(v1.p.x,v1.p.y,v1.p.z,1.0f);
+            v4 clip_v2 = v4f(v2.p.x,v2.p.y,v2.p.z,1.0f);
             
             camera_to_clip(projection_matrix, &clip_v0);
             camera_to_clip(projection_matrix, &clip_v1);
@@ -551,9 +589,9 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
             v3 screen_v0,screen_v1,screen_v2;
             viewport(&ndc_v0,&ndc_v1,&ndc_v2,&screen_v0,&screen_v1,&screen_v2);
             
-            Vertex vv0 = {screen_v0,v3f(1.0f,0.0f,0.0f)};
-            Vertex vv1 = {screen_v1,v3f(1.0f,0.0f,0.0f)};
-            Vertex vv2 = {screen_v2,v3f(1.0f,0.0f,0.0f)};
+            Vertex vv0 = {screen_v0,v0.color};
+            Vertex vv1 = {screen_v1,v1.color};
+            Vertex vv2 = {screen_v2,v2.color};
             
             draw_triangle(backbuffer, vv0, vv1, vv2);
         }
