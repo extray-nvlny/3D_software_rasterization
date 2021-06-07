@@ -86,10 +86,10 @@ build_camera_matrix_uvn(Camera *camera)
     camera->target.y = 1.0f*cos_phi;
     camera->target.z = 1.0f*sin_phi*cos_theta;
     
-    camera->n = normalize(subtract_v3v3(camera->target, camera->p));
+    camera->n = normalize_v3(subtract_v3v3(camera->target, camera->p));
     camera->v = v3f(0.0,1.0f,0.0f);
-    camera->u = normalize(cross_product_3(camera->v,camera->n));
-    camera->v = normalize(cross_product_3(camera->n,camera->u));
+    camera->u = normalize_v3(cross_product_3(camera->v,camera->n));
+    camera->v = normalize_v3(cross_product_3(camera->n,camera->u));
     
     m4x4 uvn =
     {

@@ -158,13 +158,13 @@ mul_m4x4m4x4(m4x4 A, m4x4 B)
 
 
 v3 
-mul_m4x4v3(m3x3 A, v3 b)
+mul_m4x4v3(m4x4 A, v3 b)
 {
-    v3 result;
+    v3 result = {0};
     
-    result.x = b.x*A.e[0][0]+b.y*A.e[0][1]+b.z*A.e[0][2];
-    result.y = b.x*A.e[1][0]+b.y*A.e[1][1]+b.z*A.e[1][2];
-    result.z = b.x*A.e[2][0]+b.y*A.e[2][1]+b.z*A.e[2][2];
+    result.x = b.x*A.e[0][0]+b.y*A.e[0][1]+b.z*A.e[0][2] + 1.0f*A.e[0][3];
+    result.y = b.x*A.e[1][0]+b.y*A.e[1][1]+b.z*A.e[1][2] + 1.0f*A.e[1][3];
+    result.z = b.x*A.e[2][0]+b.y*A.e[2][1]+b.z*A.e[2][2] + 1.0f*A.e[2][3];
     
     return result;
 }
@@ -174,7 +174,7 @@ mul_m4x4v3(m3x3 A, v3 b)
 v4
 mul_m4x4v4(m4x4 A, v4 b)
 {
-    v4 result;
+    v4 result = {0};
     
     result.x = b.x*A.e[0][0]+b.y*A.e[0][1]+b.z*A.e[0][2]+b.w*A.e[0][3];
     result.y = b.x*A.e[1][0]+b.y*A.e[1][1]+b.z*A.e[1][2]+b.w*A.e[1][3];
@@ -187,7 +187,7 @@ mul_m4x4v4(m4x4 A, v4 b)
 v3
 mul_f32v3(f32 x, v3 A)
 {
-    v3 result;
+    v3 result = {0};
     
     result.x = A.x * x;
     result.y = A.y * x;
@@ -200,7 +200,7 @@ mul_f32v3(f32 x, v3 A)
 v4
 mul_f32v4(f32 x, v4 A)
 {
-    v4 result;
+    v4 result = {0};
     
     result.x = A.x * x;
     result.y = A.y * x;
@@ -214,7 +214,7 @@ mul_f32v4(f32 x, v4 A)
 v3
 add_v3v3(v3 A, v3 B)
 {
-    v3 result;
+    v3 result = {0};
     
     result.x = A.x + B.x;
     result.y = A.y + B.y;
@@ -227,7 +227,7 @@ add_v3v3(v3 A, v3 B)
 v4
 add_v4v4(v4 A, v4 B)
 {
-    v4 result;
+    v4 result = {0};
     
     result.x = A.x + B.x;
     result.y = A.y + B.y;
@@ -241,7 +241,7 @@ add_v4v4(v4 A, v4 B)
 v3
 subtract_v3v3(v3 A, v3 B)
 {
-    v3 result;
+    v3 result = {0};
     
     result.x = A.x - B.x;
     result.y = A.y - B.y;
@@ -253,7 +253,7 @@ subtract_v3v3(v3 A, v3 B)
 v2
 subtract_v2v2(v2 A, v2 B)
 {
-    v2 result;
+    v2 result = {0};
     
     result.x = A.x - B.x;
     result.y = A.y - B.y;
@@ -265,7 +265,7 @@ subtract_v2v2(v2 A, v2 B)
 f32 
 dot_product_3(v3 A,v3 B)
 {
-    f32 result;
+    f32 result = 0;
     
     result = A.x*B.x + A.y*B.y + A.z*B.z;
     
@@ -276,7 +276,7 @@ dot_product_3(v3 A,v3 B)
 f32 
 dot_product_2(v2 A,v2 B)
 {
-    f32 result;
+    f32 result = 0;
     
     result = A.x*B.x + A.y*B.y;
     
@@ -287,7 +287,7 @@ dot_product_2(v2 A,v2 B)
 v3 
 lerp_v3(v3 A, v3 B, f32 t)
 {
-    v3 result;
+    v3 result = {0};
     
     result = add_v3v3(mul_f32v3((1.0f - t),A),mul_f32v3(t,B));
     
@@ -298,7 +298,7 @@ lerp_v3(v3 A, v3 B, f32 t)
 v4 
 lerp_v4(v4 A, v4 B, f32 t)
 {
-    v4 result;
+    v4 result = {0};
     
     result = add_v4v4(mul_f32v4((1.0f - t),A),mul_f32v4(t,B));
     
@@ -319,15 +319,15 @@ cross_product_3(v3 a, v3 b)
 }
 
 v3
-normalize(v3 a)
+normalize_v3(v3 a)
 {
     v3 result = {0};
     
     f32 length = sqrt(a.x*a.x+a.y*a.y+a.z*a.z);
     
     result.x = a.x / length;
-    result.x = a.y / length;
-    result.x = a.z / length;
+    result.y = a.y / length;
+    result.z = a.z / length;
     
     return result;
 }

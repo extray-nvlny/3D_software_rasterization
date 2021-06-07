@@ -84,7 +84,7 @@ reset_render_list(RenderList *render_list)
 void
 local_to_world_object(Object *object)
 {
-    // TODO(shvayko): Use matrix  here
+#if 0
     for(u32 vertex_index = 0;
         vertex_index < object->vertices_count;
         vertex_index++)
@@ -92,6 +92,33 @@ local_to_world_object(Object *object)
         v3 *current_vertex = &object->vertices[vertex_index];
         *current_vertex = add_v3v3(object->world_p, *current_vertex);
     }
+#else
+    for(u32 poly_index = 0;
+        poly_index < object->poly_count;
+        poly_index++)
+    {
+        for(u32 vertex_index = 0;
+            vertex_index < object->vertices_count;
+            vertex_index++)
+        {
+            v3 *vertex_modify = &object->polys[poly_index].vertices[vertex_index].p;
+            v3  object_vertex = object->vertices[poly_index * 3 + vertex_index];
+#if 0
+            *vertex_modify = add_v3v3(object->world_p, object_vertex);
+#else
+            m4x4 translate = 
+            {
+                1,0,0,object->world_p.x,
+                0,1,0,object->world_p.y,
+                0,0,1,object->world_p.z,
+                0,0,0,1
+            };
+            *vertex_modify = mul_m4x4v3(translate, object_vertex);
+            int test = 5;
+#endif
+        }
+    }
+#endif
 }
 
 /*
@@ -407,7 +434,7 @@ create_cube_obj(v3 world_p, u32 size)
     
     f32 vertices_buffer[] = 
     {
-        // NOTE(shvayko): VERTICES - COLORS - NORMALS    
+        // NOTE(shvayko): VERTICES - COLORS
         
         // forward face
         -0.5f, -0.5f, 1.0f, 1.0f,1.0f,0.0f,
@@ -429,22 +456,21 @@ create_cube_obj(v3 world_p, u32 size)
         
         // back face
         
-        -0.5f, -0.5f, 2.0f, 1.0f,1.0f,0.0f,
+        -0.5f, -0.5f, 2.0f, 1.0f,0.0f,0.0f,
         0.5f, 0.5f,   2.0f, 1.0f,0.0f,0.0f,
-        -0.5f, 0.5f,  2.0f, 1.0f,0.0f,1.0f,
+        0.5f, -0.5f,  2.0f, 1.0f,0.0f,0.0f,
         
-        0.5f, -0.5f,  2.0f, 1.0f,1.0f,0.0f,
-        0.5f, 0.5f,   2.0f, 0.0f,1.0f,0.0f,
-        -0.5f, -0.5f, 2.0f, 0.0f,1.0f,1.0f,
-        
+        -0.5f, -0.5f, 2.0f, 1.0f,0.0f,0.0f,
+        -0.5f, 0.5f,  2.0f, 1.0f,0.0f,0.0f,
+        0.5f, 0.5f,   2.0f, 1.0f,0.0f,0.0f,
         // left face
         -0.5f, -0.5f, 1.0f, 1.0f,0.2f,1.0f,
-        -0.5f, 0.5f,  2.0f, 1.0f,0.2f,1.0f,
         -0.5f, 0.5f,  1.0f, 1.0f,0.2f,1.0f,
+        -0.5f, 0.5f,  2.0f, 1.0f,0.2f,1.0f,
         
-        -0.5f, -0.5f, 2.0f, 0.0f,0.4f,1.0f,
-        -0.5f, 0.5f,  2.0f, 0.0f,0.4f,1.0f,
         -0.5f, -0.5f, 1.0f, 0.0f,0.4f,1.0f,
+        -0.5f, 0.5f,  2.0f, 0.0f,0.4f,1.0f,
+        -0.5f, -0.5f, 2.0f, 0.0f,0.4f,1.0f,
         
         // top face
         0.5f,-0.5f, 2.0f, 1.0f,0.0f,0.0f,
@@ -457,12 +483,12 @@ create_cube_obj(v3 world_p, u32 size)
         
         // bottom face
         
-        0.5f,0.5f, 2.0f, 1.0f,1.0f,1.0f,
         0.5f,0.5f, 1.0f, 1.0f,1.0f,1.0f,
+        0.5f,0.5f, 2.0f, 1.0f,1.0f,1.0f,
         -0.5f,0.5f, 1.0f, 1.0f,1.0f,1.0f,
         
-        0.5f,0.5f, 2.0f,  0.0f,1.0f,0.0f,
         -0.5f,0.5f, 1.0f, 0.0f,1.0f,0.0f,
+        0.5f,0.5f, 2.0f,  0.0f,1.0f,0.0f,
         -0.5f,0.5f, 2.0f, 0.0f,1.0f,0.0f,
         
     };
@@ -526,19 +552,19 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
     v3 dp = v3f(0.0f,0.0f,0.0f);
     if(input->button_right.down)
     {
-        dp.x += 0.1f;
+        dp.x += 0.01f;
     }
     if(input->button_left.down)
     {
-        dp.x -= 0.1f;
+        dp.x -= 0.01f;
     }
     if(input->button_up.down)
     {
-        dp.z += 0.1f;
+        dp.z += 0.01f;
     }
     if(input->button_down.down)
     {
-        dp.z -= 0.1f;
+        dp.z -= 0.01f;
     }
     g_objects[0].world_p = add_v3v3(g_objects[0].world_p,dp); 
     // NOTE(shvayko): Test input
@@ -562,38 +588,46 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
             v1 = polygon->vertices[1];
             v2 = polygon->vertices[2];
             
-            //NOTE(shvaykO): world space - to - camera space
+            //NOTE(shvaykO): local space - to  world space
+            local_to_world_object(object);
             
-            //v0 = add_v3v3(g_objects[0].world_p,v0); 
-            //v1 = add_v3v3(g_objects[0].world_p,v1); 
-            //v2 = add_v3v3(g_objects[0].world_p,v2); 
+            // NOTE(shvayko): Backface culling
+            // NOTE(shvayko): Left handed system. Clockwise ordering
+            v3 poly_line0 = subtract_v3v3(v0.p,v2.p);
+            v3 poly_line1 = subtract_v3v3(v1.p,v2.p);
+            v3 poly_normal = normalize_v3(cross_product_3(poly_line0,poly_line1));
             
-            //NOTE(shvayko): camera space - to - clip space
-            
-            //NOTE(shvayko): clipping
-            
-            v4 clip_v0 = v4f(v0.p.x,v0.p.y,v0.p.z,1.0f);
-            v4 clip_v1 = v4f(v1.p.x,v1.p.y,v1.p.z,1.0f);
-            v4 clip_v2 = v4f(v2.p.x,v2.p.y,v2.p.z,1.0f);
-            
-            camera_to_clip(projection_matrix, &clip_v0);
-            camera_to_clip(projection_matrix, &clip_v1);
-            camera_to_clip(projection_matrix, &clip_v2);
-            
-            //NOTE(shvayko): clip space - to - NDC space
-            
-            v3 ndc_v0,ndc_v1,ndc_v2;
-            perspective_divide(&clip_v0,&clip_v1,&clip_v2,&ndc_v0,&ndc_v1,&ndc_v2);
-            
-            //NOTE(shvayko): NDC space - to - screen space
-            v3 screen_v0,screen_v1,screen_v2;
-            viewport(&ndc_v0,&ndc_v1,&ndc_v2,&screen_v0,&screen_v1,&screen_v2);
-            
-            Vertex vv0 = {screen_v0,v0.color};
-            Vertex vv1 = {screen_v1,v1.color};
-            Vertex vv2 = {screen_v2,v2.color};
-            
-            draw_triangle(backbuffer, vv0, vv1, vv2);
+            if(dot_product_3(poly_normal,v0.p) > 0.0f)
+            {
+                //NOTE(shvaykO): world space - to - camera space
+                
+                //NOTE(shvayko): camera space - to - clip space
+                
+                //NOTE(shvayko): clipping
+                
+                v4 clip_v0 = v4f(v0.p.x,v0.p.y,v0.p.z,1.0f);
+                v4 clip_v1 = v4f(v1.p.x,v1.p.y,v1.p.z,1.0f);
+                v4 clip_v2 = v4f(v2.p.x,v2.p.y,v2.p.z,1.0f);
+                
+                camera_to_clip(projection_matrix, &clip_v0);
+                camera_to_clip(projection_matrix, &clip_v1);
+                camera_to_clip(projection_matrix, &clip_v2);
+                
+                //NOTE(shvayko): clip space - to - NDC space
+                
+                v3 ndc_v0,ndc_v1,ndc_v2;
+                perspective_divide(&clip_v0,&clip_v1,&clip_v2,&ndc_v0,&ndc_v1,&ndc_v2);
+                
+                //NOTE(shvayko): NDC space - to - screen space
+                v3 screen_v0,screen_v1,screen_v2;
+                viewport(&ndc_v0,&ndc_v1,&ndc_v2,&screen_v0,&screen_v1,&screen_v2);
+                
+                Vertex vv0 = {screen_v0,v0.color};
+                Vertex vv1 = {screen_v1,v1.color};
+                Vertex vv2 = {screen_v2,v2.color};
+                
+                draw_triangle(backbuffer, vv0, vv1, vv2);
+            }
         }
     }
 }
