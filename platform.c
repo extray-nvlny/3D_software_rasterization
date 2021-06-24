@@ -1,9 +1,9 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include "string.h"
 #include "platform.h"
 #include "rasterizer.c"
 #include <windows.h>
-#include "string.h"
 
 #define MAX_KEYS 256
 #define BYTES_PER_PIXEL 4

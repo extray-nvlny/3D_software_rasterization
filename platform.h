@@ -72,4 +72,54 @@ typedef struct
 
 void *memset(void *, int,size_t);
 
+
+typedef struct FileContent
+{
+    void *memory;
+    u32 file_size;
+}FileContent;
+
+FileContent win_read_file(char *filename);
+
+// NOTE(shvayko): Stretchy buffers implementation
+typedef struct ArrayHeader
+{
+    size_t length;
+    size_t capacity;
+    char buf[0];
+}ArrayHeader;
+
+#define ARRAY_LENGTH(a) ((a) ? ARRAY_HEADER(a)->length : 0)
+#define ARRAY_CAPACITY(a) ((a) ? ARRAY_HEADER(a)->capacity : 0)
+
+#define ARRAY_HEADER(a) ((ArrayHeader*)((char*)a - offsetof(ArrayHeader,buf)))
+#define ARRAY_FITS(a,item) ((ARRAY_LENGTH(a) + item) <= ARRAY_CAPACITY(a))
+#define ARRAY_FIT(a,item) ((ARRAY_FITS(a,item) ? 0 : (a = ARRAY_GROW(a,ARRAY_LENGTH(a) + item,sizeof(*a)))))
+
+#define ARRAY_PUSH(a,item) ((ARRAY_FIT(a,1), a[ARRAY_HEADER(a)->length++] = item))
+#define ARRAY_GROW(a, length,elem_size) (array_grow_(a, length,elem_size))
+#define ARRAY_FREE(a) (a ? free(ARRAY_HEADER(a)) : 0)
+
+void *
+array_grow_(const void *array, size_t new_len, size_t elem_size)
+{
+    size_t new_cap = 1+2*ARRAY_CAPACITY(array);
+    ASSERT(new_cap >= new_len);
+    size_t new_size = offsetof(ArrayHeader,buf) + new_cap * elem_size;
+    ArrayHeader *new_header;
+    if(array)
+    {
+        new_header = realloc(ARRAY_HEADER(array),new_size);
+    }
+    else
+    {
+        new_header = malloc(new_size);
+        new_header->length = 0;
+    }
+    new_header->capacity = new_cap;
+    return new_header->buf;
+}
+
+
+
 #endif //PLATFORM_H

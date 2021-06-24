@@ -1,73 +1,9 @@
 #include "rasterizer.h"
-#include "math.h"
-#include "assets.c"
 #include "texture.c"
 #include "camera.c"
 
-
-#define MAX_POLYS    128
-#define MAX_VERTICES 128
-
-// TODO(shvayko): Are they constants?
-#define VIEWPORT_WIDTH  800
-#define VIEWPORT_HEIGHT 600
-
-typedef struct Vertex
-{
-    v3 p;
-    v3 color;
-}Vertex;
-
-#if 0
-typedef struct Poly
-{
-    v3 *vertices_list;
-    v3 color;
-    
-    s32 vertex[3];
-}Poly;
-#else
-typedef struct Poly
-{
-    Vertex vertices[3];
-}Poly;
-#endif
-
-typedef struct Object
-{
-    v3 world_p;
-    
-    v3 vertices[MAX_VERTICES];
-    u32 vertices_count;
-    
-    Poly polys[MAX_POLYS];
-    u32 poly_count;
-    
-    Bitmap *texture;
-}Object;
-global Object g_objects[1024];
-global u32 g_object_count;
-
-typedef struct PolySelf
-{
-    Vertex vertices[3];
-    
-    struct PolySelf *next;
-    struct PolySelf *prev;
-}PolySelf;
-
-typedef struct RenderList
-{
-    
-    PolySelf poly_pointers[128];
-    
-    // NOTE(shvayko): Actual data
-    PolySelf poly_data[128];
-    
-    u32 poly_count;
-}RenderList;
-
-global RenderList g_render_list;
+s32 g_viewport_width;
+s32 g_viewport_height;
 
 void
 clear_backbuffer(AppBackbuffer *backbuffer)
@@ -79,6 +15,21 @@ void
 reset_render_list(RenderList *render_list)
 {
     render_list->poly_count = 0;
+}
+
+v3
+rotate_z(f32 angle, v3 vec)
+{
+    m4x4 rot_matrix = 
+    {
+        cosf(angle),sinf(angle),0.0f,0.0f,
+        -sinf(angle),cosf(angle),0.0f,0.0f,
+        0.0f,0.0f,1.0f,0.0f,
+        0.0f,0.0f,0.0f,1.0f,
+    };
+    
+    vec = mul_m4x4v3(rot_matrix,vec);
+    return vec;
 }
 
 void
@@ -191,16 +142,16 @@ void
 viewport(const v3 *ndc_v0,const v3 *ndc_v1,const v3 *ndc_v2,
          v3 *screen_v0,v3 *screen_v1,v3 *screen_v2)
 {
-    screen_v0->x = (ndc_v0->x + 1.0f)*VIEWPORT_WIDTH*0.5f;
-    screen_v0->y = (ndc_v0->y + 1.0f)*VIEWPORT_HEIGHT*0.5f;
+    screen_v0->x = (ndc_v0->x + 1.0f)*g_viewport_width*0.5f;
+    screen_v0->y = (ndc_v0->y + 1.0f)*g_viewport_height*0.5f;
     screen_v0->z = ndc_v0->z;
     
-    screen_v1->x = (ndc_v1->x + 1.0f)*VIEWPORT_WIDTH*0.5f;
-    screen_v1->y = (ndc_v1->y + 1.0f)*VIEWPORT_HEIGHT*0.5f;
+    screen_v1->x = (ndc_v1->x + 1.0f)*g_viewport_width*0.5f;
+    screen_v1->y = (ndc_v1->y + 1.0f)*g_viewport_height*0.5f;
     screen_v1->z = ndc_v1->z;
     
-    screen_v2->x = (ndc_v2->x + 1.0f)*VIEWPORT_WIDTH*0.5f;
-    screen_v2->y = (ndc_v2->y + 1.0f)*VIEWPORT_HEIGHT*0.5f;
+    screen_v2->x = (ndc_v2->x + 1.0f)*g_viewport_width*0.5f;
+    screen_v2->y = (ndc_v2->y + 1.0f)*g_viewport_height*0.5f;
     screen_v2->z = ndc_v2->z;
 }
 
@@ -278,6 +229,17 @@ draw_flat_bottom_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
     s32 y_start = (s32)ceil(v0.p.y - 0.5f);
     s32 y_end   = (s32)ceil(v2.p.y - 0.5f);
     
+    
+    if(y_start < 0)
+    {
+        y_start = 0;
+    }
+    if(y_end > g_viewport_height)
+    {
+        y_end = g_viewport_height;
+    }
+    
+    
     for(s32 y = y_start;
         y <= y_end;
         y++)
@@ -311,12 +273,36 @@ draw_flat_top_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
     s32 y_start = (s32)ceil(v0.p.y - 0.5f);
     s32 y_end   = (s32)ceil(v1.p.y - 0.5f);
     
+    if(y_start < 0)
+    {
+        y_start = 0;
+    }
+    if(y_end > g_viewport_height)
+    {
+        y_end = g_viewport_height;
+    }
+    
     for(s32 y = y_start;
         y <= y_end;
         y++)
     {
         x_start = v2.p.x + (y - y_start)*dxy_left;
         x_end   = v0.p.x + (y - y_start)*dxy_right;
+        
+        if(y == 562)
+        {
+            int stop = 5;
+        }
+        
+        if(x_start < 0)
+        {
+            x_start = 0;
+        }
+        if(x_end > g_viewport_width)
+        {
+            x_end = g_viewport_width;
+        }
+        
         
         s32 x0 = (s32)ceil(x_start - 0.5f);
         s32 x1 = (s32)ceil(x_end - 0.5f);
@@ -431,7 +417,7 @@ create_cube_obj(v3 world_p, u32 size)
     object->vertices_count = 36;
     
     // NOTE(shvayko): Vertices array
-    
+#if 0
     f32 vertices_buffer[] = 
     {
         // NOTE(shvayko): VERTICES - COLORS
@@ -527,9 +513,13 @@ create_cube_obj(v3 world_p, u32 size)
             object->polys[poly_index].vertices[vertex_index].color = color;
         }
     }
+#else
     
+#endif
     return object;
 }
+
+MeshData *cube;
 
 void 
 update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
@@ -538,7 +528,15 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
     {
         g_test_bitmap = load_bitmap("test_texture.bmp");
         
-        g_objects[g_object_count] = *create_cube_obj(v3f(0.0f,0.0f,0.0f), 0.5f);
+        cube = load_obj_file("cube.obj");
+        g_object_count = 1;
+        
+        
+        g_viewport_width = backbuffer->width;
+        g_viewport_height = backbuffer->height;
+        
+        
+        //g_objects[g_object_count] = *create_cube_obj(v3f(0.0f,0.0f,0.0f), 0.5f);
         
         g_is_init = true;
     }
@@ -547,8 +545,10 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
     
     f32 near_plane = 1.0f;
     f32 far_plane  = 10.0f;
-    m4x4 projection_matrix = build_perspective_projection_matrix(VIEWPORT_WIDTH,VIEWPORT_HEIGHT,90, 
+    m4x4 projection_matrix = build_perspective_projection_matrix(g_viewport_width,g_viewport_height,90, 
                                                                  near_plane, far_plane);
+    
+    // NOTE(shvayko): Test input
     v3 dp = v3f(0.0f,0.0f,0.0f);
     if(input->button_right.down)
     {
@@ -567,37 +567,63 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
         dp.z -= 0.01f;
     }
     g_objects[0].world_p = add_v3v3(g_objects[0].world_p,dp); 
-    // NOTE(shvayko): Test input
     
+    static f32 angle = 0.0f;
+    angle += 0.01f;
     local_to_world_object(&g_objects[0]);
     
     // NOTE(shvayko): draw test non-textured object
+    f32 colors[12] = 
+    {
+        0xFF0000,
+        0xFFFFFF,
+        0xFFFFFF,
+        0x00FF00,
+        0xFF0000,
+        0xFF00FF,
+        0xFFFFFF,
+        0x00FF00,
+        0xFF00FF,
+        0xF000FF,
+        0x0000FF,
+        0x0000FF,
+    };
     for(u32 object_index = 0;
         object_index < g_object_count;
         object_index++)
     {
-        Object *object = g_objects + object_index;
+        MeshData *object = cube;
         for(u32 poly_index = 0;
             poly_index < object->poly_count;
             poly_index++)
         {
-            Poly *polygon = object->polys + poly_index;
+            Poly *polygon = &object->polygons[poly_index];
             
             Vertex v0,v1,v2;
             v0 = polygon->vertices[0];
             v1 = polygon->vertices[1];
             v2 = polygon->vertices[2];
             
+            v0.p.z += 3.0f;
+            v1.p.z += 3.0f;
+            v2.p.z += 3.0f;
+            
+            
             //NOTE(shvaykO): local space - to  world space
-            local_to_world_object(object);
+            
+            //local_to_world_object(object);
             
             // NOTE(shvayko): Backface culling
             // NOTE(shvayko): Left handed system. Clockwise ordering
+#if 0
             v3 poly_line0 = subtract_v3v3(v0.p,v2.p);
             v3 poly_line1 = subtract_v3v3(v1.p,v2.p);
             v3 poly_normal = normalize_v3(cross_product_3(poly_line0,poly_line1));
-            
-            if(dot_product_3(poly_normal,v0.p) > 0.0f)
+#else
+            bool not_backface = true;
+#endif
+            //if(dot_product_3(poly_normal,v0.p) > 0.0f)
+            if(not_backface)
             {
                 //NOTE(shvaykO): world space - to - camera space
                 
@@ -622,9 +648,10 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
                 v3 screen_v0,screen_v1,screen_v2;
                 viewport(&ndc_v0,&ndc_v1,&ndc_v2,&screen_v0,&screen_v1,&screen_v2);
                 
-                Vertex vv0 = {screen_v0,v0.color};
-                Vertex vv1 = {screen_v1,v1.color};
-                Vertex vv2 = {screen_v2,v2.color};
+                f32 color = colors[poly_index];
+                Vertex vv0 = {screen_v0,v3f(color,color,color)};
+                Vertex vv1 = {screen_v1,v3f(color,color,color)};
+                Vertex vv2 = {screen_v2,v3f(color,color,color)};
                 
                 draw_triangle(backbuffer, vv0, vv1, vv2);
             }
