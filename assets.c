@@ -7,13 +7,13 @@ typedef struct Vertex
     v3 color;
 }Vertex;
 
-#if 0
+#if 1
 typedef struct Poly
 {
     v3 *vertices_list;
     v3 color;
     
-    s32 vertex[3];
+    s32 indices[3];
 }Poly;
 #else
 typedef struct Poly
@@ -62,11 +62,25 @@ typedef struct BitmapFormat
 
 typedef struct MeshData
 {
+    Poly polygons[50968];
+    u32 poly_count;
+    
     char *object_name;
     
+    v3 world_p;
+    
+    v3 *vertices;
+    u32 vertices_count;
+    
+    f32 *normals;
+    u32 normals_count;
+    
+    f32 *texture_coords;
+    
+    s32 *indices;
+    u32 indices_count;
+    
     // TODO(shvayko): Get rid of this restriction
-    Poly polygons[1024];
-    unsigned int poly_count;
 }MeshData;
 
 Bitmap
@@ -109,9 +123,9 @@ is_digit(char character)
 int
 parse_int(char *string)
 {
-    int result = 0;
+    s32 result = 0;
     
-    int sign =  1; // positive
+    s32 sign =  1; // positive
     
     char *scan = string;
     
@@ -136,8 +150,8 @@ parse_int(char *string)
         {
             if(is_digit(scan[0]))
             {
-                int shuffle = result * 10;
-                int num = scan[0] - '0';
+                s32 shuffle = result * 10;
+                s32 num = scan[0] - '0';
                 result =  shuffle + num;
             }
         }
@@ -149,9 +163,9 @@ parse_int(char *string)
 float
 parse_float(char *string)
 {
-    float result = 0;
+    f32 result = 0;
     
-    float sign = 1.0f; // positive
+    f32 sign = 1.0f; // positive
     
     char *scan = string;
     if(string[0] == '-1')
@@ -161,7 +175,7 @@ parse_float(char *string)
     }
     
     // NOTE(shvayko): Find the point
-    int point_finded = 0;
+    s32 point_finded = 0;
     
     for(;
         *scan;
@@ -272,7 +286,7 @@ skip_until_next_line(char **at)
 }
 
 MeshData*
-load_obj_file(char *filename)
+load_obj_file(char *filename, v3 world_p)
 {
     parse_float = &atof;
     ASSERT(parse_float);
@@ -282,22 +296,21 @@ load_obj_file(char *filename)
     char *start = file.memory;
     char *end   = file.memory + file.size;
     
-    unsigned int line_count = 0;
+    u32 line_count = 0;
     char *ch = start;
     
     // NOTE(shvayko): Dynamic arrays
-    float *vertices_list = 0;
-    float *normals = 0;
-    float *texture_coords = 0;
-    int   *indicies = 0;
-    
-    float *faces  = 0;
-    Poly *polys = 0;
-    
     MeshData *mesh = (MeshData*)malloc(sizeof(MeshData));
-    
+    mesh->world_p = world_p;
+    mesh->vertices = 0;
+    mesh->vertices_count = 0;
+    mesh->normals = 0;
+    mesh->normals_count = 0;
+    mesh->texture_coords = 0;
+    mesh->indices = 0;
+    mesh->indices_count = 0;
     mesh->object_name = malloc(MAX_OBJECT_NAME_LENGTH);
-    
+    mesh->poly_count = 0;
     char *object_name = malloc(MAX_OBJECT_NAME_LENGTH);
     
     while(ch != end)
@@ -305,9 +318,7 @@ load_obj_file(char *filename)
         char *line = (char*)malloc(MAX_LINE_LENGTH);
         memset(line,0,MAX_LINE_LENGTH);
         
-        int symbols_count = 0;
-        
-        
+        s32 symbols_count = 0;
         while(!is_end_of_line(*ch))
         {
             line[symbols_count++] = *ch++;
@@ -339,130 +350,116 @@ load_obj_file(char *filename)
                 char *v1 = strtok(0, " ");
                 char *v2 = strtok(0, " ");
                 
-                float parsed_float0  = parse_float(v0);
-                float parsed_float1  = parse_float(v1);
-                float parsed_float2  = parse_float(v2);
+                f32 parsed_float0  = parse_float(v0);
+                // NOTE(shvayko): Reverse Y up to bottom
+                f32 parsed_float1  = parse_float(v1) * -1.0f;
+                f32 parsed_float2  = parse_float(v2);
                 
-                ARRAY_PUSH(vertices_list, parsed_float0);
-                ARRAY_PUSH(vertices_list, parsed_float1);
-                ARRAY_PUSH(vertices_list, parsed_float2);
+                v3 vertex = v3f(parsed_float0,parsed_float1,parsed_float2);
                 
-                //printf("Line:[%d] - Vertex %s %s %s\n", line_count++,v0,v1,v2);
+                ARRAY_PUSH(mesh->vertices, vertex);
+                mesh->vertices_count++;
             }
             else if(header[0] == 'vt')
             {
                 //NOTE(shvayko):Texture vertices
+                char *vt0 = strtok(0, " ");
+                char *vt1 = strtok(0, " ");
+                char *vt2 = strtok(0, " ");
+                
+                f32 parsed_float0  = parse_float(vt0);
+                f32 parsed_float1  = parse_float(vt1);
+                f32 parsed_float2  = parse_float(vt2);
+                
+                ARRAY_PUSH(mesh->texture_coords, parsed_float0);
+                ARRAY_PUSH(mesh->texture_coords, parsed_float1);
+                ARRAY_PUSH(mesh->texture_coords, parsed_float2);
             }
             else if(header[0] == 'vn')
             {
                 //NOTE(shvayko): Vertex normals
+                char *vn0 = strtok(0, " ");
+                char *vn1 = strtok(0, " ");
+                char *vn2 = strtok(0, " ");
+                
+                f32 parsed_float0  = parse_float(vn0);
+                f32 parsed_float1  = parse_float(vn1);
+                f32 parsed_float2  = parse_float(vn2);
+                
+                ARRAY_PUSH(mesh->normals, parsed_float0);
+                ARRAY_PUSH(mesh->normals, parsed_float1);
+                ARRAY_PUSH(mesh->normals, parsed_float2);
             }
             else if(header[0] == 'f')
             {
-                if(header[0] == 'v')
+                // NOTE(shvayko): Face information
+                // TODO(shvayko): Handle negative indices
+                char *value = 0;
+                f32 indices_face[64];
+                s32 num_face_vertices = 0;
+                
+                while((value = strtok(0, " ")) != 0)
                 {
-                    // NOTE(shvayko): Geometric vertices
-                    char *v0 = strtok(0, " ");
-                    char *v1 = strtok(0, " ");
-                    char *v2 = strtok(0, " ");
-                    
-                    float parsed_float0  = parse_float(v0);
-                    float parsed_float1  = parse_float(v1);
-                    float parsed_float2  = parse_float(v2);
-                    
-                    ARRAY_PUSH(vertices_list, parsed_float0);
-                    ARRAY_PUSH(vertices_list, parsed_float1);
-                    ARRAY_PUSH(vertices_list, parsed_float2);
-                    
-                    //printf("Line:[%d] - Vertex %s %s %s\n", line_count++,v0,v1,v2);
+                    int face_index = parse_int(value) - 1;
+                    indices_face[num_face_vertices++] = face_index;
+                    ARRAY_PUSH(mesh->indices,face_index);
+                    mesh->indices_count++;
                 }
-                else if(header[0] == 'vt')
+                
+                
+                // NOTE(shvayko):TRIANGULATION STEP
+                s32 this_face_indices[128] = {0};
+                s32 triangle_count = 0;
+                if(num_face_vertices > 3)
                 {
-                    //NOTE(shvayko):Texture vertices
+                    for(s32  vertices_count = 2;
+                        vertices_count < num_face_vertices;
+                        vertices_count++)
+                    {
+                        
+                        this_face_indices[triangle_count*3+0]    = indices_face[0]; 
+                        this_face_indices[triangle_count*3+1]    = indices_face[vertices_count - 1]; 
+                        this_face_indices[triangle_count*3+2]    = indices_face[vertices_count]; 
+                        triangle_count++;
+                    }
                 }
-                else if(header[0] == 'vn')
+                else
                 {
-                    //NOTE(shvayko): Vertex normals
+                    this_face_indices[0*3+0]  = indices_face[0]; 
+                    this_face_indices[0*3+1]  = indices_face[1]; 
+                    this_face_indices[0*3+2]  = indices_face[2]; 
+                    triangle_count = 1;
                 }
-                else if(header[0] == 'f')
+                
+                s32 current_index = 0;
+                int index = 0;
+                for(s32  tri_build_index = 0;
+                    tri_build_index < triangle_count;
+                    tri_build_index++)
                 {
-                    // NOTE(shvayko): Face information
-                    // TODO(shvayko): Handle negative indices
-                    char *value = 0;
-                    float indices_face[64];
-                    int num_face_vertices = 0;
                     
-                    while((value = strtok(0, " ")) != 0)
-                    {
-                        indices_face[num_face_vertices++] = parse_int(value);
-                    }
+                    index = this_face_indices[current_index++];
+                    mesh->polygons[mesh->poly_count].indices[0] = index;
+                    v3 vertex0 = mesh->vertices[index];
                     
-                    // 1 5 7 3
-                    //          X         Y        Z  
-                    // 1 - v 1.000000 1.000000 -1.000000
-                    // 5 - v -1.000000 1.000000 -1.000000
-                    // 7 - v -1.000000 1.000000 1.000000
-                    // 3 - v 1.000000 1.000000 1.000000
+                    index = this_face_indices[current_index++];
+                    mesh->polygons[mesh->poly_count].indices[1] = index;
+                    v3 vertex1 = mesh->vertices[index];
                     
-                    // NOTE(shvayko):TRIANGULATION STEP
-                    int this_face_indices[128] = {0};
-                    int triangle_count = 0;
-                    if(num_face_vertices > 3)
-                    {
-                        for(int vertices_count = 2;
-                            vertices_count < num_face_vertices;
-                            vertices_count++)
-                        {
-                            
-                            this_face_indices[triangle_count*3+0]    = indices_face[0]; 
-                            this_face_indices[triangle_count*3+1]    = indices_face[vertices_count - 1]; 
-                            this_face_indices[triangle_count*3+2]    = indices_face[vertices_count]; 
-                            triangle_count++;
-                        }
-                    }
-                    else
-                    {
-                        this_face_indices[0*3+0]  = indices_face[0]; 
-                        this_face_indices[0*3+1]  = indices_face[1]; 
-                        this_face_indices[0*3+2]  = indices_face[2]; 
-                        triangle_count = 1;
-                    }
+                    index = this_face_indices[current_index++];
+                    mesh->polygons[mesh->poly_count].indices[2] = index;
+                    v3 vertex2 = mesh->vertices[index];
                     
-                    int current_index = 0;
-                    for(int tri_build_index = 0;
-                        tri_build_index < triangle_count;
-                        tri_build_index++)
-                    {
-                        int index = this_face_indices[current_index++] - 1;
-                        float px0 = vertices_list[index * 3 + 0];
-                        float py0 = vertices_list[index * 3 + 1];
-                        float pz0 = vertices_list[index * 3 + 2];
-                        
-                        index = this_face_indices[current_index++] - 1;
-                        float px1 = vertices_list[index * 3 + 0];
-                        float py1 = vertices_list[index * 3 + 1];
-                        float pz1 = vertices_list[index * 3 + 2];
-                        
-                        index = this_face_indices[current_index++] - 1;
-                        float px2 = vertices_list[index * 3 + 0];
-                        float py2 = vertices_list[index * 3 + 1];
-                        float pz2 = vertices_list[index * 3 + 2];
-                        
-                        mesh->polygons[mesh->poly_count].vertices[0].p.x = px0;
-                        mesh->polygons[mesh->poly_count].vertices[0].p.y = py0;
-                        mesh->polygons[mesh->poly_count].vertices[0].p.z = pz0;
-                        
-                        mesh->polygons[mesh->poly_count].vertices[1].p.x = px1;
-                        mesh->polygons[mesh->poly_count].vertices[1].p.y = py1;
-                        mesh->polygons[mesh->poly_count].vertices[1].p.z = pz1;
-                        
-                        mesh->polygons[mesh->poly_count].vertices[2].p.x = px2;
-                        mesh->polygons[mesh->poly_count].vertices[2].p.y = py2;
-                        mesh->polygons[mesh->poly_count++].vertices[2].p.z = pz2;
-                    }
+                    mesh->polygons[mesh->poly_count++].vertices_list = mesh->vertices;
                     
+                    /*
+                                        mesh->polygons[mesh->poly_count].vertices[0].p = vertex0;
+                                        
+                                        mesh->polygons[mesh->poly_count].vertices[1].p = vertex1;
+                                        
+                                        mesh->polygons[mesh->poly_count++].vertices[2].p = vertex2;
+                    */
                 }
-                //printf("Line:[%d] - Face %s %s %s\n", line_count++,face0,face1,face2);
             }
             else if(header[0] == 's')
             {
@@ -476,6 +473,7 @@ load_obj_file(char *filename)
         skip_until_next_line(&ch);
         free(line);
         free(tmp_line);
+        
     }
     
     return mesh;

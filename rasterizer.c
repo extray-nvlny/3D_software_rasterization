@@ -1,7 +1,6 @@
 #include "rasterizer.h"
 #include "texture.c"
 #include "camera.c"
-
 s32 g_viewport_width;
 s32 g_viewport_height;
 
@@ -33,17 +32,9 @@ rotate_z(f32 angle, v3 vec)
 }
 
 void
-local_to_world_object(Object *object)
+local_to_world_object(MeshData *object)
 {
-#if 0
-    for(u32 vertex_index = 0;
-        vertex_index < object->vertices_count;
-        vertex_index++)
-    {
-        v3 *current_vertex = &object->vertices[vertex_index];
-        *current_vertex = add_v3v3(object->world_p, *current_vertex);
-    }
-#else
+    
     for(u32 poly_index = 0;
         poly_index < object->poly_count;
         poly_index++)
@@ -52,11 +43,8 @@ local_to_world_object(Object *object)
             vertex_index < object->vertices_count;
             vertex_index++)
         {
-            v3 *vertex_modify = &object->polys[poly_index].vertices[vertex_index].p;
-            v3  object_vertex = object->vertices[poly_index * 3 + vertex_index];
-#if 0
-            *vertex_modify = add_v3v3(object->world_p, object_vertex);
-#else
+            v3 *vertex_modify = &object->polygons[poly_index].vertices_list[vertex_index];
+            
             m4x4 translate = 
             {
                 1,0,0,object->world_p.x,
@@ -64,12 +52,10 @@ local_to_world_object(Object *object)
                 0,0,1,object->world_p.z,
                 0,0,0,1
             };
-            *vertex_modify = mul_m4x4v3(translate, object_vertex);
+            *vertex_modify = mul_m4x4v3(translate, *vertex_modify);
             int test = 5;
-#endif
         }
     }
-#endif
 }
 
 /*
@@ -229,7 +215,6 @@ draw_flat_bottom_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
     s32 y_start = (s32)ceil(v0.p.y - 0.5f);
     s32 y_end   = (s32)ceil(v2.p.y - 0.5f);
     
-    
     if(y_start < 0)
     {
         y_start = 0;
@@ -241,12 +226,21 @@ draw_flat_bottom_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
     
     
     for(s32 y = y_start;
-        y <= y_end;
+        y < y_end;
         y++)
     {
         
         x_start = v0.p.x + (y-y_start)*dxy_left;
         x_end   = v0.p.x + (y-y_start)*dxy_right;
+        
+        if(x_start < 0)
+        {
+            x_start = 0;
+        }
+        if(x_end > g_viewport_width)
+        {
+            x_end = g_viewport_width;
+        }
         
         s32 x0 = (s32)ceil(x_start - 0.5f);
         s32 x1 = (s32)ceil(x_end - 0.5f);
@@ -283,16 +277,11 @@ draw_flat_top_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
     }
     
     for(s32 y = y_start;
-        y <= y_end;
+        y < y_end;
         y++)
     {
         x_start = v2.p.x + (y - y_start)*dxy_left;
         x_end   = v0.p.x + (y - y_start)*dxy_right;
-        
-        if(y == 562)
-        {
-            int stop = 5;
-        }
         
         if(x_start < 0)
         {
@@ -302,7 +291,6 @@ draw_flat_top_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
         {
             x_end = g_viewport_width;
         }
-        
         
         s32 x0 = (s32)ceil(x_start - 0.5f);
         s32 x1 = (s32)ceil(x_end - 0.5f);
@@ -528,15 +516,11 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
     {
         g_test_bitmap = load_bitmap("test_texture.bmp");
         
-        cube = load_obj_file("cube.obj");
+        cube = load_obj_file("teapot.obj", v3f(0.0f,0.0f,0.0f));
         g_object_count = 1;
-        
         
         g_viewport_width = backbuffer->width;
         g_viewport_height = backbuffer->height;
-        
-        
-        //g_objects[g_object_count] = *create_cube_obj(v3f(0.0f,0.0f,0.0f), 0.5f);
         
         g_is_init = true;
     }
@@ -550,6 +534,7 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
     
     // NOTE(shvayko): Test input
     v3 dp = v3f(0.0f,0.0f,0.0f);
+    cube->world_p = dp;
     if(input->button_right.down)
     {
         dp.x += 0.01f;
@@ -566,28 +551,33 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
     {
         dp.z -= 0.01f;
     }
-    g_objects[0].world_p = add_v3v3(g_objects[0].world_p,dp); 
+    cube->world_p = add_v3v3(cube->world_p,dp); 
     
     static f32 angle = 0.0f;
     angle += 0.01f;
-    local_to_world_object(&g_objects[0]);
+    local_to_world_object(cube);
     
     // NOTE(shvayko): draw test non-textured object
-    f32 colors[12] = 
+    
+    v3 colors[12] = 
     {
-        0xFF0000,
-        0xFFFFFF,
-        0xFFFFFF,
-        0x00FF00,
-        0xFF0000,
-        0xFF00FF,
-        0xFFFFFF,
-        0x00FF00,
-        0xFF00FF,
-        0xF000FF,
-        0x0000FF,
-        0x0000FF,
+        v3f(1.0f,0.0f,0.0f),
+        v3f(0.0f,1.0f,0.0f),
+        v3f(0.0f,0.0f,1.0f),
+        
+        v3f(1.0f,0.0f,1.0f),
+        v3f(1.0f,0.0f,1.0f),
+        v3f(0.0f,1.0f,1.0f),
+        
+        v3f(1.0f,1.0f,1.0f),
+        v3f(0.0f,1.0f,1.0f),
+        v3f(1.0f,1.0f,0.5f),
+        
+        v3f(1.0f,0.0f,1.0f),
+        v3f(0.0f,0.0f,1.0f),
+        v3f(0.0f,1.0f,1.0f),
     };
+    
     for(u32 object_index = 0;
         object_index < g_object_count;
         object_index++)
@@ -599,28 +589,32 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
         {
             Poly *polygon = &object->polygons[poly_index];
             
-            Vertex v0,v1,v2;
-            v0 = polygon->vertices[0];
-            v1 = polygon->vertices[1];
-            v2 = polygon->vertices[2];
+            s32 index_v0,index_v1,index_v2;
+            index_v0 = polygon->indices[0];
+            index_v1 = polygon->indices[1];
+            index_v2 = polygon->indices[2];
             
-            v0.p.z += 3.0f;
-            v1.p.z += 3.0f;
-            v2.p.z += 3.0f;
+            v3 v0 = polygon->vertices_list[index_v0];
+            v3 v1 = polygon->vertices_list[index_v1];
+            v3 v2 = polygon->vertices_list[index_v2];
+            
+            v0.z += 8.0f;
+            v1.z += 8.0f;
+            v2.z += 8.0f;
             
             
             //NOTE(shvaykO): local space - to  world space
             
-            //local_to_world_object(object);
-            
             // NOTE(shvayko): Backface culling
             // NOTE(shvayko): Left handed system. Clockwise ordering
-#if 0
-            v3 poly_line0 = subtract_v3v3(v0.p,v2.p);
-            v3 poly_line1 = subtract_v3v3(v1.p,v2.p);
-            v3 poly_normal = normalize_v3(cross_product_3(poly_line0,poly_line1));
-#else
             bool not_backface = true;
+#if 0
+            v3 poly_line0 = subtract_v3v3(v0,v2);
+            v3 poly_line1 = subtract_v3v3(v1,v2);
+            v3 poly_normal = normalize_v3(cross_product_3(poly_line0,poly_line1));
+            not_backface = false;
+#else
+            not_backface = true;
 #endif
             //if(dot_product_3(poly_normal,v0.p) > 0.0f)
             if(not_backface)
@@ -631,9 +625,9 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
                 
                 //NOTE(shvayko): clipping
                 
-                v4 clip_v0 = v4f(v0.p.x,v0.p.y,v0.p.z,1.0f);
-                v4 clip_v1 = v4f(v1.p.x,v1.p.y,v1.p.z,1.0f);
-                v4 clip_v2 = v4f(v2.p.x,v2.p.y,v2.p.z,1.0f);
+                v4 clip_v0 = v4f(v0.x,v0.y,v0.z,1.0f);
+                v4 clip_v1 = v4f(v1.x,v1.y,v1.z,1.0f);
+                v4 clip_v2 = v4f(v2.x,v2.y,v2.z,1.0f);
                 
                 camera_to_clip(projection_matrix, &clip_v0);
                 camera_to_clip(projection_matrix, &clip_v1);
@@ -648,10 +642,10 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
                 v3 screen_v0,screen_v1,screen_v2;
                 viewport(&ndc_v0,&ndc_v1,&ndc_v2,&screen_v0,&screen_v1,&screen_v2);
                 
-                f32 color = colors[poly_index];
-                Vertex vv0 = {screen_v0,v3f(color,color,color)};
-                Vertex vv1 = {screen_v1,v3f(color,color,color)};
-                Vertex vv2 = {screen_v2,v3f(color,color,color)};
+                v3 color = colors[poly_index % 12];
+                Vertex vv0 = {screen_v0,color};
+                Vertex vv1 = {screen_v1,color};
+                Vertex vv2 = {screen_v2,color};
                 
                 draw_triangle(backbuffer, vv0, vv1, vv2);
             }
