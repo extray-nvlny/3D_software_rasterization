@@ -377,18 +377,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd)
         win_free_file(test_read_file);
     }
     
-#if 0
-    char *text = malloc(256);
-    memset(text,0, 256);
-    text[0] = 'H';
-    text[1] = 'E';
-    text[2] = 'L';
-    text[3] = 'L';
-    text[4] = 'O';
-    win_write_file("test.txt",text,256);
-    free(text);
-#endif
-    
     if(window != INVALID_HANDLE_VALUE)
     {
         AppMemory memory = {0};

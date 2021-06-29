@@ -8,7 +8,7 @@ f32 *g_z_buffer;
 f32*
 z_buffer_create(s32 width, s32 height)
 {
-    f32 *buffer = (f32*)malloc(sizeof(f32)*width*height);
+    f32 *buffer = (f32*)malloc(sizeof(float)*width*height);
     if(!buffer)
     {
         ASSERT(!"Z buffer allocation has failed");
@@ -17,7 +17,7 @@ z_buffer_create(s32 width, s32 height)
 }
 
 void
-z_buffer_clear(f32 *buffer,s32 width, s32 height, s32 max_init_value)
+z_buffer_clear(f32 *buffer,s32 width, s32 height, f32 max_init_value)
 {
     u32 buffer_size = width*height;
     for(u32 index = 0;
@@ -33,15 +33,15 @@ z_buffer_get_value(f32 *buffer,u32 x, u32 y,s32 width)
 {
     f32 result = 0;
     
-    result = buffer[x*width+y];
+    result = buffer[x+y*width];
     
     return result;
 }
 
 void
-z_buffer_set_value(f32 *buffer,u32 x,u32 y,s32 width,u8 value)
+z_buffer_set_value(f32 *buffer,u32 x,u32 y,s32 width,f32 value)
 {
-    buffer[x*width+y] = value;
+    buffer[x+y*width] = value;
 }
 
 f32
