@@ -129,7 +129,6 @@ typedef struct m3x3
     };
 }m3x3;
 
-
 m4x4
 mul_m4x4m4x4(m4x4 A, m4x4 B)
 {
