@@ -8,8 +8,6 @@ call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\auxiliary
 
 cl -FC -nologo -Zi "C:\Program Files (x86)\Projects\renderer\code\platform.c" user32.lib Gdi32.lib 
 
-REM
-
-cl -FC -nologo -Zi "C:\Program Files (x86)\Projects\renderer\code\obj_loader.c" user32.lib Gdi32.lib 
+REM cl -FC -nologo -Zi "C:\Program Files (x86)\Projects\renderer\code\obj_loader.c" user32.lib Gdi32.lib 
 
 popd

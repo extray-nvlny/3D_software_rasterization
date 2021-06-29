@@ -3,6 +3,74 @@
 #include "camera.c"
 s32 g_viewport_width;
 s32 g_viewport_height;
+f32 *g_z_buffer;
+
+f32*
+z_buffer_create(s32 width, s32 height)
+{
+    f32 *buffer = (f32*)malloc(sizeof(f32)*width*height);
+    if(!buffer)
+    {
+        ASSERT(!"Z buffer allocation has failed");
+    }
+    return buffer;
+}
+
+void
+z_buffer_clear(f32 *buffer,s32 width, s32 height, s32 max_init_value)
+{
+    u32 buffer_size = width*height;
+    for(u32 index = 0;
+        index < buffer_size;
+        index++)
+    {
+        buffer[index] = max_init_value;
+    }
+}
+
+f32
+z_buffer_get_value(f32 *buffer,u32 x, u32 y,s32 width)
+{
+    f32 result = 0;
+    
+    result = buffer[x*width+y];
+    
+    return result;
+}
+
+void
+z_buffer_set_value(f32 *buffer,u32 x,u32 y,s32 width,u8 value)
+{
+    buffer[x*width+y] = value;
+}
+
+f32
+interpolate_depths(f32 depth0, f32 depth1, f32 depth2, f32 W0, f32 W1, f32 W2)
+{
+    f32 result = 0;
+    
+    f32 r0 = depth0 * W0;
+    f32 r1 = depth1 * W1;
+    f32 r2 = depth2 * W2;
+    
+    result = r0 + r1 + r2;
+    
+    return result;
+}
+
+bool
+depth_test(f32 *buffer,f32 interpolated_depth, s32 x, s32 y, u32 width)
+{
+    bool result = false;
+    
+    f32 prev_val = z_buffer_get_value(buffer, x,y, width);
+    if(interpolated_depth < prev_val)
+    {
+        z_buffer_set_value(buffer,x,y,width, interpolated_depth);
+        result = true;
+    }
+    return result;
+}
 
 void
 clear_backbuffer(AppBackbuffer *backbuffer)
@@ -157,16 +225,16 @@ void
 barycentric(v3 A, v3 B, v3 C, v3 p, f32 *u, f32 *v, f32 *w)
 {
     
-    v2 v0 = subtract_v2v2(B.xy,A.xy);
-    v2 v1 = subtract_v2v2(C.xy,A.xy);
-    v2 v2 = subtract_v2v2(p.xy,A.xy);
+    v3 v0 = subtract_v3v3(B,A);
+    v3 v1 = subtract_v3v3(C,A);
+    v3 v2 = subtract_v3v3(p,A);
     
     // v0 = B-A   v1 = C-A    v2 = p-A
-    f32 d00 = dot_product_2(v0,v0);
-    f32 d01 = dot_product_2(v0,v1);
-    f32 d11 = dot_product_2(v1,v1);
-    f32 d20 = dot_product_2(v2,v0);
-    f32 d21 = dot_product_2(v2,v1);
+    f32 d00 = dot_product_3(v0,v0);
+    f32 d01 = dot_product_3(v0,v1);
+    f32 d11 = dot_product_3(v1,v1);
+    f32 d20 = dot_product_3(v2,v0);
+    f32 d21 = dot_product_3(v2,v1);
     
     f32 denominator = d00*d11 - d01 * d01;
     
@@ -189,9 +257,15 @@ draw_scanline(AppBackbuffer *backbuffer,s32 x0,s32 x1,s32 y,
         x++)
     {
         barycentric(v0.p,v1.p,v2.p,v3f(x,y,0),&u,&v,&w);
-        v3 v3_color = add_v3v3(add_v3v3(mul_f32v3(u,v0.color),mul_f32v3(v,v1.color)),mul_f32v3(w,v2.color));
-        u32 color = rgb1_to_rgb255(v3_color);
-        *pixel++ = color;
+        f32 interpolated_depth = interpolate_depths(v0.p.z,v1.p.z,v2.p.z,u,v,w);
+        
+        if(depth_test(g_z_buffer, interpolated_depth,x,y, g_viewport_width))
+        {
+            v3 v3_color = add_v3v3(add_v3v3(mul_f32v3(u,v0.color),mul_f32v3(v,v1.color)),mul_f32v3(w,v2.color));
+            
+            u32 color = rgb1_to_rgb255(v3_color);
+            *pixel++ = color;
+        }
     }
 }
 
@@ -522,10 +596,14 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
         g_viewport_width = backbuffer->width;
         g_viewport_height = backbuffer->height;
         
+        g_z_buffer = z_buffer_create(g_viewport_width, g_viewport_height);
+        
         g_is_init = true;
     }
     
     clear_backbuffer(backbuffer);
+    
+    z_buffer_clear(g_z_buffer, g_viewport_width, g_viewport_height,1.0f);
     
     f32 near_plane = 1.0f;
     f32 far_plane  = 10.0f;
