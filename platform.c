@@ -47,6 +47,36 @@ typedef struct
     s32 height;
 }WindowDim;
 
+void
+dump_debug_counters(AppMemory *memory)
+{
+    char *counters_name[DebugCycleCount_count] = 
+    {
+        "update_and_render",
+        "pipeline",
+        "load_model",
+        "draw_triangle",
+        "draw_flat_top_tri",
+        "draw_flat_bottom_tri",
+        "draw_scanline",
+    };
+    
+    for(u32 index_counter = 0;
+        index_counter < ARRAY_COUNT(memory->debug_counters);
+        index_counter++)
+    {
+        DebugCounter *counter = memory->debug_counters + index_counter;
+        if(counter->was_called)
+        {
+            char message_buffer[256];
+            snprintf(message_buffer, 256,"%s, cycles:[%I64u], was_called:[%I64u] cycles/hit:[%I64u]\n",counters_name[index_counter], counter->cycles, counter->was_called, counter->cycles / counter->was_called);
+            OutputDebugStringA(message_buffer);
+            counter->was_called = 0;
+            counter->cycles = 0;
+        }
+    }
+}
+
 FileContent
 win_read_file(char *filename)
 {
@@ -241,7 +271,7 @@ window_proc(HWND window,UINT message,WPARAM wParam,LPARAM lParam)
                     g_mouse_delta_y += raw_input->data.mouse.lLastY;
 #if 0
                     char message_buffer[256];
-                    snprintf(message_buffer, 256,"Mouse dX pos:[%d], mouse dY pos:[%d]\n",g_mouse_last_x, g_mouse_last_y);
+                    snprintf(message_buffer,256,"Mouse dX pos:[%d], mouse dY pos:[%d]\n",g_mouse_last_x, g_mouse_last_y);
                     OutputDebugStringA(message_buffer);
 #endif
                     USHORT button_flags = raw_input->data.mouse.usButtonFlags;
@@ -468,6 +498,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd)
             }
 #endif
             update_and_render(&app_backbuffer, &memory, &g_keyboard);
+            dump_debug_counters(&memory);
             
             blit_to_screen(device_context,&g_backbuffer,dim.width,dim.height);
             

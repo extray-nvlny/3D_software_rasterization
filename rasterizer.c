@@ -375,6 +375,7 @@ draw_flat_top_tri(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
 void
 draw_triangle(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
 {
+    START_TIMED_BLOCK(draw_triangle);
     // NOTE(shvayko): Sort vertices by their Y coordinates
     //                v0 smallest - v2 biggest
     
@@ -443,6 +444,7 @@ draw_triangle(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
             draw_flat_top_tri(backbuffer, v1,v2, new_vertex);
         }
     }
+    END_TIMED_BLOCK(draw_triangle);
 }
 
 global bool g_is_init = false;
@@ -583,15 +585,20 @@ create_cube_obj(v3 world_p, u32 size)
 
 MeshData *cube;
 
+AppMemory *g_debug_memory;
 void 
 update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
 {
+    START_TIMED_BLOCK(update_and_render);
     if(!g_is_init)
     {
+        g_debug_memory = memory;
         g_test_bitmap = load_bitmap("test_texture.bmp");
         
-        cube = load_obj_file("teapot.obj", v3f(0.0f,0.0f,0.0f));
+        START_TIMED_BLOCK(load_model);
+        cube = load_obj_file("cube.obj", v3f(0.0f,0.0f,0.0f));
         g_object_count = 1;
+        END_TIMED_BLOCK(load_model);
         
         g_viewport_width = backbuffer->width;
         g_viewport_height = backbuffer->height;
@@ -656,6 +663,7 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
         v3f(0.0f,1.0f,1.0f),
     };
     
+    START_TIMED_BLOCK(pipeline);
     for(u32 object_index = 0;
         object_index < g_object_count;
         object_index++)
@@ -729,4 +737,6 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
             }
         }
     }
+    END_TIMED_BLOCK(pipeline);
+    END_TIMED_BLOCK(update_and_render);
 }

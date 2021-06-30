@@ -24,6 +24,7 @@ typedef double   f64;
 #define internal static
 
 #define ASSERT(expr) if(!(expr)) { *(u32*)0 = 0;}
+#define ARRAY_COUNT(x) (sizeof(x) / sizeof(x[0]))
 
 #define KILOBYTES(x) x*1024
 #define MEGABYTES(x) KILOBYTES(x)*1024 
@@ -60,6 +61,25 @@ typedef struct
     s32 stride;
 }AppBackbuffer;
 
+enum
+{
+    DebugCycleCount_update_and_render = 0,
+    DebugCycleCount_pipeline,
+    DebugCycleCount_load_model,
+    DebugCycleCount_draw_triangle,
+    DebugCycleCount_draw_flat_top_tri,
+    DebugCycleCount_draw_flat_bottom_tri,
+    DebugCycleCount_draw_scanline,
+    
+    DebugCycleCount_count
+};
+
+typedef struct DebugCounter
+{
+    u64 cycles;
+    u64 was_called;
+}DebugCounter;
+
 typedef struct
 {
     s64  permanent_storage_size;
@@ -68,7 +88,14 @@ typedef struct
     void *transient_storage;
     
     bool is_memory_init;
+    
+    DebugCounter debug_counters[10];
 }AppMemory;
+
+extern AppMemory *g_debug_memory;
+
+#define START_TIMED_BLOCK(name) u64 start_cycle_count_##name = __rdtsc();
+#define END_TIMED_BLOCK(name) g_debug_memory->debug_counters[DebugCycleCount_##name].cycles += __rdtsc() - start_cycle_count_##name;g_debug_memory->debug_counters[DebugCycleCount_##name].was_called++;
 
 void *memset(void *, int,size_t);
 
