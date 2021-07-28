@@ -613,8 +613,6 @@ g_object_count = 1;
     angle += 0.01f;
     //local_to_world_object(g_meshes[0]);
     
-    // NOTE(shvayko): draw test non-textured object
-    
     v3 colors[12] = 
     {
         v3f(1.0f,0.0f,0.0f),
