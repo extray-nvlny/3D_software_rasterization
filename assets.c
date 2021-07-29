@@ -62,11 +62,17 @@ typedef struct BitmapFormat
 
 typedef struct MeshData
 {
+<<<<<<< HEAD
     Poly polygons[50968]; // reduce this amount
     u32 poly_count;
     
     v3 vertices_list_local[512];
     
+=======
+    Poly polygons[50968];
+    u32 poly_count;
+    
+>>>>>>> c8f0ac7a68ed4f6288d6d09b7908b62e68f25d95
     char *object_name;
     
     v3 world_p;
@@ -132,7 +138,10 @@ parse_int(char *string)
     char *scan = string;
     
     // NOTE(shvayko): discard as many whitespace characters (as in isspace) as necessary until the first non-whitespace character is found.
+<<<<<<< HEAD
     // TODO(shvayko): May be DO-WHILE LOOP FOR 
+=======
+>>>>>>> c8f0ac7a68ed4f6288d6d09b7908b62e68f25d95
     while(is_whitespace(scan[0]))
     {
         scan++;
@@ -419,7 +428,11 @@ load_obj_file(char *filename, v3 world_p)
                         vertices_count < num_face_vertices;
                         vertices_count++)
                     {
+<<<<<<< HEAD
                         // NOTE(shvayko): Simplest triangulation algorithm
+=======
+                        
+>>>>>>> c8f0ac7a68ed4f6288d6d09b7908b62e68f25d95
                         this_face_indices[triangle_count*3+0]    = indices_face[0]; 
                         this_face_indices[triangle_count*3+1]    = indices_face[vertices_count - 1]; 
                         this_face_indices[triangle_count*3+2]    = indices_face[vertices_count]; 
@@ -478,5 +491,9 @@ load_obj_file(char *filename, v3 world_p)
         free(tmp_line);
         
     }
+<<<<<<< HEAD
+=======
+    
+>>>>>>> c8f0ac7a68ed4f6288d6d09b7908b62e68f25d95
     return mesh;
 }
