@@ -10,10 +10,11 @@
 
 typedef enum Keycodes
 {
-    Action_up     = 0x57,
-    Action_down   = 0x53,
-    Action_left   = 0x41,
-    Action_right  = 0x44,
+    Action_up     = 0x57, // W
+    Action_down   = 0x53, // S
+    Action_left   = 0x41, // A
+    Action_right  = 0x44, // R
+    Action_pause  = 0x50, // P
     
     Action_count,
 }Keycodes;
@@ -29,6 +30,7 @@ global s32           g_mouse_pos_y;
 global bool g_app_is_running;
 global bool g_raw_input_registered;
 global Keyboard g_keyboard;
+global bool g_pause;
 
 typedef struct 
 {
@@ -118,13 +120,12 @@ win_write_file(char *filename, void *data, u32 bytes_to_write)
         {
             
         }
-<<<<<<< HEAD
+        
         else
         {
             // TODO(shvayko):LOGGING
         }
-=======
->>>>>>> c8f0ac7a68ed4f6288d6d09b7908b62e68f25d95
+        
     }
 }
 
@@ -449,6 +450,12 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd)
             pull_keyboard(&g_keyboard);
             
 #if 1
+            if(g_keys[Action_pause].pressed)
+            {
+                g_pause = !g_pause;
+                OutputDebugStringA("Pause button was pressed\n");
+            }
+            
             if(g_keys[Action_up].pressed)
             {
                 OutputDebugStringA("Button 'W' was pressed\n");
@@ -484,53 +491,56 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CmdLine, int ShowCmd)
                 OutputDebugStringA("Right mouse button is released!\n");
             }
 #endif
-            WindowDim dim = get_window_dim(window);
-            
-            AppBackbuffer app_backbuffer = {0};
-            app_backbuffer.width  = g_backbuffer.width;
-            app_backbuffer.height = g_backbuffer.height;
-            app_backbuffer.stride = g_backbuffer.stride;
-            app_backbuffer.memory = g_backbuffer.memory;
-#if 1
-            g_keyboard.button_right = g_keys[Action_right];
-            g_keyboard.button_left = g_keys[Action_left];
-            g_keyboard.button_down = g_keys[Action_down];
-            g_keyboard.button_up = g_keys[Action_up];
-#else
-            for(s32 key_index = 0;
-                key_index < Action_count;
-                key_index++)
+            if(!g_pause)
             {
-                g_keyboard.e[key_index] = g_keys[key_index];
+                WindowDim dim = get_window_dim(window);
+                
+                AppBackbuffer app_backbuffer = {0};
+                app_backbuffer.width  = g_backbuffer.width;
+                app_backbuffer.height = g_backbuffer.height;
+                app_backbuffer.stride = g_backbuffer.stride;
+                app_backbuffer.memory = g_backbuffer.memory;
+#if 1
+                g_keyboard.button_right = g_keys[Action_right];
+                g_keyboard.button_left = g_keys[Action_left];
+                g_keyboard.button_down = g_keys[Action_down];
+                g_keyboard.button_up = g_keys[Action_up];
+#else
+                for(s32 key_index = 0;
+                    key_index < Action_count;
+                    key_index++)
+                {
+                    g_keyboard.e[key_index] = g_keys[key_index];
+                }
+#endif
+                update_and_render(&app_backbuffer, &memory, &g_keyboard);
+                dump_debug_counters(&memory);
+                
+                blit_to_screen(device_context,&g_backbuffer,dim.width,dim.height);
+                
+                s64 last_cpu_cycles  = __rdtsc();
+                s64 delta_cpu_cycles = last_cpu_cycles - first_cpu_cycles;
+                
+                LARGE_INTEGER last_time = get_clock_value();
+                f32 clock_dif = get_clock_dif(last_time, first_time);
+                f32 delta_time_sec = clock_dif / (f32)perf_freq_value;
+                
+                f32 time_ms = (f32)(delta_time_sec * 1000.0f);
+                f32 FPS     = (f32)(1.0f / delta_time_sec);
+                
+#if 0
+                char message_buffer[256];
+                snprintf(message_buffer, 256,"Mouse X:[%d], mouse Y:[%d]\n",g_mouse_pos_x, g_mouse_pos_x);
+                OutputDebugStringA(message_buffer);
+#endif
+#if 0
+                char message_buffer[256];
+                snprintf(message_buffer, 256,"FPS:[%f], MS:[%f], Seconds:[%f], cycles:[%lld]\n",FPS,time_ms,delta_time_sec, delta_cpu_cycles);
+                OutputDebugStringA(message_buffer);
+#endif
+                first_time       = last_time;
+                first_cpu_cycles = last_cpu_cycles;
             }
-#endif
-            update_and_render(&app_backbuffer, &memory, &g_keyboard);
-            dump_debug_counters(&memory);
-            
-            blit_to_screen(device_context,&g_backbuffer,dim.width,dim.height);
-            
-            s64 last_cpu_cycles  = __rdtsc();
-            s64 delta_cpu_cycles = last_cpu_cycles - first_cpu_cycles;
-            
-            LARGE_INTEGER last_time = get_clock_value();
-            f32 clock_dif = get_clock_dif(last_time, first_time);
-            f32 delta_time_sec = clock_dif / (f32)perf_freq_value;
-            
-            f32 time_ms = (f32)(delta_time_sec * 1000.0f);
-            f32 FPS     = (f32)(1.0f / delta_time_sec);
-            
-#if 0
-            char message_buffer[256];
-            snprintf(message_buffer, 256,"Mouse X:[%d], mouse Y:[%d]\n",g_mouse_pos_x, g_mouse_pos_x);
-            OutputDebugStringA(message_buffer);
-#endif
-#if 0
-            char message_buffer[256];
-            snprintf(message_buffer, 256,"FPS:[%f], MS:[%f], Seconds:[%f], cycles:[%lld]\n",FPS,time_ms,delta_time_sec, delta_cpu_cycles);
-            OutputDebugStringA(message_buffer);
-#endif
-            first_time       = last_time;
-            first_cpu_cycles = last_cpu_cycles;
         }
     }
     return 0;

@@ -204,7 +204,7 @@ mul_f32v4(f32 x, v4 A)
     result.x = A.x * x;
     result.y = A.y * x;
     result.z = A.z * x;
-    result.z = 1.0f;
+    result.z = A.w * x;
     
     return result;
 }
@@ -232,6 +232,20 @@ add_v4v4(v4 A, v4 B)
     result.y = A.y + B.y;
     result.z = A.z + B.z;
     result.w = 1.0f;
+    
+    return result;
+}
+
+
+v4
+subtract_v4v4(v4 A, v4 B)
+{
+    v4 result = {0};
+    
+    result.x = A.x - B.x;
+    result.y = A.y - B.y;
+    result.z = A.z - B.z;
+    result.w = A.w - B.w;
     
     return result;
 }
@@ -278,6 +292,17 @@ dot_product_2(v2 A,v2 B)
     f32 result = 0;
     
     result = A.x*B.x + A.y*B.y;
+    
+    return result;
+}
+
+
+f32
+lerp_f32(f32 A, f32 B, f32 t)
+{
+    f32 result = {0};
+    
+    result = (1.0f - t)*A + B*t;
     
     return result;
 }

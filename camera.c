@@ -70,7 +70,7 @@ build_camera_matrix_uvn(Camera *camera)
         1.0f,0.0f,0.0f,0.0f,
         0.0f,1.0f,0.0f,0.0f,
         0.0f,0.0f,1.0f,0.0f,
-        camera->p.x,-camera->p.y,-camera->p.z,1.0f,
+        -camera->p.x,-camera->p.y,-camera->p.z,1.0f,
     };
     
     f32 phi = camera->direction.x; // Elevation
@@ -83,8 +83,8 @@ build_camera_matrix_uvn(Camera *camera)
     f32 cos_theta = cosf(theta);
     
     camera->target.x = -1.0f*sin_phi*sin_theta;
-    camera->target.y = 1.0f*cos_phi;
-    camera->target.z = 1.0f*sin_phi*cos_theta;
+    camera->target.y = cos_phi;
+    camera->target.z = sin_phi*cos_theta;
     
     camera->n = normalize_v3(subtract_v3v3(camera->target, camera->p));
     camera->v = v3f(0.0,1.0f,0.0f);

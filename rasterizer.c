@@ -7,6 +7,31 @@ f32 *g_z_buffer;
 MeshData *g_meshes[3];
 global u32 g_mesh_count;
 
+s32
+clip_z(v4 *vertices_for_clip, v4 *vertices_clipped, u32 vertices_count)
+{
+    s32 outcount = 0;
+    
+    for(s32 vertex_index = 0;
+        vertex_index < vertices_count;
+        vertex_index++)
+    {
+        v4 v0 = vertices_for_clip[vertex_index];
+        v4 v1 = vertices_for_clip[(vertex_index + 1) % vertices_count];
+        if(v0.z > -v0.w)
+        {
+            vertices_clipped[outcount++] = v0;
+        }
+        if((v0.z > -v0.w) != (v1.z > -v1.w))
+        {
+            f32 factor = (-1.0f - v0.z) / (v1.z - v0.z);
+            ASSERT((factor >= 0.0f) && (factor <= 1.0f));
+            vertices_clipped[outcount++] = lerp_v4(v0,v1,factor);
+        }
+    }
+    return outcount;
+}
+
 f32*
 z_buffer_create(s32 width, s32 height)
 {
@@ -66,9 +91,9 @@ depth_test(f32 *buffer,f32 interpolated_depth, s32 x, s32 y, u32 width)
     bool result = false;
     
     f32 prev_val = z_buffer_get_value(buffer, x,y, width);
-    if(interpolated_depth < prev_val)
+    if(interpolated_depth <= prev_val)
     {
-        z_buffer_set_value(buffer,x,y,width, interpolated_depth);
+        z_buffer_set_value(buffer,x,y,width,interpolated_depth);
         result = true;
     }
     return result;
@@ -87,20 +112,66 @@ reset_render_list(RenderList *render_list)
 }
 
 v3
-rotate_z(f32 angle, v3 vec)
+rotate_z(v3 vec,f32 angle)
 {
+    v3 result = {0};
+    f32 cos_angle = cosf(angle);
+    f32 sin_angle = sinf(angle);
+    
+    // ROW MAJOR
     m4x4 rot_matrix = 
     {
-        cosf(angle),sinf(angle),0.0f,0.0f,
-        -sinf(angle),cosf(angle),0.0f,0.0f,
+        cos_angle,sin_angle,0.0f,0.0f,
+        -sin_angle,cos_angle,0.0f,0.0f,
         0.0f,0.0f,1.0f,0.0f,
         0.0f,0.0f,0.0f,1.0f,
     };
     
-    vec = mul_m4x4v3(rot_matrix,vec);
-    return vec;
+    result = mul_m4x4v3(rot_matrix,vec);
+    return result;
 }
 
+v3
+rotate_y(v3 vec,f32 angle)
+{
+    v3 result = {0};
+    
+    f32 cos_angle = cosf(angle);
+    f32 sin_angle = sinf(angle);
+    
+    // ROW MAJOR
+    m4x4 rot_matrix = 
+    {
+        cos_angle,0,-sin_angle,0.0f,
+        0.0f,1.0f,0.0f,0.0f,
+        sin_angle,0.0f,cos_angle,0.0f,
+        0.0f,0.0f,0.0f,1.0f,
+    };
+    result = mul_m4x4v3(rot_matrix,vec);
+    
+    return result;
+}
+
+v3
+rotate_x(v3 vec,f32 angle)
+{
+    v3 result = {0};
+    f32 cos_angle = cosf(angle);
+    f32 sin_angle = sinf(angle);
+    
+    
+    // ROW MAJOR
+    m4x4 rot_matrix = 
+    {
+        1.0f,0,0.0f,0.0f,
+        0.0f,cos_angle,sin_angle,0.0f,
+        0.0f,-sin_angle,cos_angle,0.0f,
+        0.0f,0.0f,0.0f,1.0f,
+    };
+    result = mul_m4x4v3(rot_matrix,vec);
+    
+    return result;
+}
 
 
 void
@@ -154,10 +225,16 @@ build_perspective_projection_matrix(f32 width,f32 height,f32 fov,
     
     f32 ar = width / height;
     f32 a = 1.0f / (tanf(DEG_TO_RAD(fov*0.5f))*ar);
-    f32 b = 1.0f / a;
+    f32 b = 1.0f / tanf(DEG_TO_RAD(fov*0.5f));
+#if 0
+    // OPENGL like ndc cube -1 to 1
     f32 d = (-near-far) / (near-far);
     f32 e = (2.0f*far*near) / (near - far);
-    
+#else
+    // OPENGL like ndc cube -1 to 1
+    f32 d  = (far+near) / (far - near);
+    f32 e  = (-2.0f*far*near) / (far - near);
+#endif
     // NOTE(shvatko): ROW MAJOR
     m4x4 matrix = 
     {
@@ -189,11 +266,12 @@ perspective_divide(const v4 *clip_v0, const v4 *clip_v1, const v4 *clip_v2,
     *ndc_v2 = v3f(clip_v2->x / clip_v2->w,clip_v2->y / clip_v2->w,clip_v2->z / clip_v2->w);
 }
 
-void
-camera_to_clip(m4x4 projection_matrix,v4 *out_vertex)
+v4
+camera_to_clip(m4x4 projection_matrix,v3 vertex)
 {
-    ASSERT(out_vertex->w == 1.0f);
-    *out_vertex = mul_m4x4v4(projection_matrix,*out_vertex);
+    v4 result = v4f(vertex.x, vertex.y, vertex.z, 1.0f);
+    result = mul_m4x4v4(projection_matrix,result);
+    return result;
 }
 
 void
@@ -240,7 +318,7 @@ barycentric(v3 A, v3 B, v3 C, v3 p, f32 *u, f32 *v, f32 *w)
     f32 d20 = dot_product_3(v2,v0);
     f32 d21 = dot_product_3(v2,v1);
     
-    f32 denominator = d00*d11 - d01 * d01;
+    f32 denominator = (d00*d11 - d01 * d01);
     
     *v = (d11*d20-d01*d21) / denominator;
     *w = (d00*d21-d01*d20) / denominator;
@@ -254,12 +332,15 @@ draw_scanline(AppBackbuffer *backbuffer,s32 x0,s32 x1,s32 y,
 {
     u32 *pixel = (u32*)((u8*)backbuffer->memory + x0 * 4 + backbuffer->stride * y);
     
-    f32 u,v,w;
-    u = v = w = 0;
+    f32 v = 0;
+    f32 u = 0;
+    f32 w = 0;
+    
     for(s32 x = x0;
         x < x1;
         x++)
     {
+        
         barycentric(v0.p,v1.p,v2.p,v3f(x,y,0),&u,&v,&w);
         f32 interpolated_depth = interpolate_depths(v0.p.z,v1.p.z,v2.p.z,u,v,w);
         
@@ -267,8 +348,8 @@ draw_scanline(AppBackbuffer *backbuffer,s32 x0,s32 x1,s32 y,
         {
             v3 v3_color = add_v3v3(add_v3v3(mul_f32v3(u,v0.color),mul_f32v3(v,v1.color)),mul_f32v3(w,v2.color));
             
-            u32 color = rgb1_to_rgb255(v3_color);
-            *pixel++ = color;
+            
+            *pixel++ = rgb1_to_rgb255(v3_color);
         }
     }
 }
@@ -433,6 +514,7 @@ draw_triangle(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
     {
         // NOTE(shvayko): Find new vertex
         f32 t = (v1.p.y - v0.p.y) / (v2.p.y - v0.p.y);
+        ASSERT((t >= 0.0f) && (t <= 1.0f));
         v3 new_vertex_p = lerp_v3(v0.p, v2.p, t);
         v3 new_vertex_color = lerp_v3(v0.color, v2.color,t);
         struct Vertex new_vertex = {new_vertex_p, new_vertex_color};
@@ -441,7 +523,7 @@ draw_triangle(AppBackbuffer *backbuffer, Vertex v0, Vertex v1, Vertex v2)
         if(new_vertex.p.x > v1.p.x) // NOTE(shvayko): right major
         {
             draw_flat_bottom_tri(backbuffer, v0, new_vertex, v1);
-            draw_flat_top_tri(backbuffer,  new_vertex, v2, v1);
+            draw_flat_top_tri(backbuffer, new_vertex, v2, v1);
         }
         else if(new_vertex.p.x < v1.p.x) // NOTE(shvayko): left major
         {
@@ -484,26 +566,26 @@ create_cube_obj(v3 world_p, u32 size)
     
     v3 vertices[8] =
     {
-        {0.5f, -0.5f, 1.0f},   // 0
-        {0.5f,  0.5f, 1.0f},   // 1
-        {-0.5f, 0.5f, 1.0f},   // 2
-        {-0.5f, -0.5f, 1.0f},  // 3
+        {1.0f, -1.0f, -1.0f},   // 0
+        {1.0f,  1.0f, -1.0f},   // 1
+        {-1.0f, 1.0f, -1.0f},   // 2
+        {-1.0f, -1.0f, -1.0f},  // 3
         
-        {0.5f,  0.5f, 2.0f},   // 4
-        {0.5f,  -0.5f, 2.0f},  // 5
+        {1.0f,  1.0f, 1.0f},   // 4
+        {1.0f,  -1.0f,1.0f},  // 5
         
-        {-0.5f, -0.5f, 2.0f},  // 6
-        {-0.5f, 0.5f, 2.0f},   // 7
+        {-1.0f, -1.0f,1.0f},  // 6
+        {-1.0f, 1.0f, 1.0f},   // 7
     };
     
     s32 indices[36] =
     {
-        0,1,2, 0,2,3, // FRONT FACE
         5,1,0, 5,4,1, // RIGHT FACE
-        6,7,5, 6,4,5, // BACKWARD FACE
-        6,3,7, 3,2,7, // LEFT FACE
+        6,7,4, 6,4,5, // BACKWARD FACE
+        0,1,2, 0,2,3, // FRONT FACE
         6,5,3, 5,0,3, // TOP FACE
         4,1,2, 4,2,7, // BOTTOM FACE
+        6,3,7, 3,2,7, // LEFT FACE
     };
     
     
@@ -542,34 +624,30 @@ update_and_render(AppBackbuffer *backbuffer, AppMemory *memory, Keyboard *input)
         //g_test_bitmap = load_bitmap("test_texture.bmp");
         
         START_TIMED_BLOCK(load_model);
-        //g_meshes[g_mesh_count++] = load_obj_file("teapot.obj", v3f(0.0f,0.0f,0.0f));
-        g_meshes[g_mesh_count++] = create_cube_obj(v3f(0.0f,0.0f,0.0f), 10);
-        /*
-        // check winding
-        Poly first_tri = cube->polygons[0];
+        //g_meshes[g_mesh_count++] = load_obj_file("cube.obj", v3f(0.0f,0.0f,5.0f));
+        g_meshes[g_mesh_count++] = create_cube_obj(v3f(0.0f,0.0f,2.0f), 10);
+#if 0
+        g_meshes[g_mesh_count++] = (MeshData*)malloc(sizeof(MeshData));
+        MeshData *mesh = g_meshes[0];
+        Poly *polygon = &mesh->polygons[0];
+        s32 *polygon_indices = polygon->indices;
+        polygon->vertices_list = (v3*)malloc(sizeof(v3)*3);
+        v3 *vertices_list  = polygon->vertices_list;
+        mesh->vertices_count = 3;
+        mesh->indices = polygon_indices;
+        mesh->vertices = vertices_list;
+        mesh->poly_count++;
         
-        v3 v00 = first_tri.vertices_list[first_tri.indices[0]];
-        v3 v01 = first_tri.vertices_list[first_tri.indices[1]];
-        v3 v02 = first_tri.vertices_list[first_tri.indices[2]];
+        vertices_list[0] = v3f(0.5f, -0.5f, 4.0f);
+        vertices_list[1] = v3f(0.5f,  0.5f, 2.0f); // up
+        vertices_list[2] = v3f(-0.5f, 0.5f, 4.0f);
         
-        v3 first_tri_poly_line0 = subtract_v3v3(v00,v02);
-        v3 first_tri_poly_line1 = subtract_v3v3(v01,v02);
+        polygon_indices[0] = 0;
+        polygon_indices[1] = 1;
+        polygon_indices[2] = 2;
         
-        v3 poly_normal_0 = normalize_v3(cross_product_3(first_tri_poly_line0,first_tri_poly_line1));
-        ////////////////////////////////////////////////////
-        Poly second_tri = cube->polygons[1];
-        
-        v3 v10 = second_tri.vertices_list[second_tri.indices[0]];
-        v3 v11 = second_tri.vertices_list[second_tri.indices[1]];
-        v3 v12 = second_tri.vertices_list[second_tri.indices[2]];
-        
-        v3 second_tri_poly_line0 = subtract_v3v3(v10,v12);
-        v3 second_tri_poly_line1 = subtract_v3v3(v11,v12);
-        
-        v3 poly_normal_1 = normalize_v3(cross_product_3(second_tri_poly_line0,second_tri_poly_line1));
-g_object_count = 1;
-        */
-        
+        mesh->polygons[0] = *polygon;
+#endif
         END_TIMED_BLOCK(load_model);
         
         g_viewport_width = backbuffer->width;
@@ -585,7 +663,7 @@ g_object_count = 1;
     z_buffer_clear(g_z_buffer, g_viewport_width, g_viewport_height,1.0f);
     
     f32 near_plane = 1.0f;
-    f32 far_plane  = 10.0f;
+    f32 far_plane  = 15.0f;
     m4x4 projection_matrix = build_perspective_projection_matrix(g_viewport_width,g_viewport_height,90, 
                                                                  near_plane, far_plane);
     
@@ -601,7 +679,7 @@ g_object_count = 1;
     }
     if(input->button_up.down)
     {
-        dp.z += 0.01f;
+        dp.z += 0.1f;
     }
     if(input->button_down.down)
     {
@@ -609,9 +687,7 @@ g_object_count = 1;
     }
     g_meshes[0]->world_p = add_v3v3(g_meshes[0]->world_p,dp); 
     
-    static f32 angle = 0.0f;
-    angle += 0.01f;
-    //local_to_world_object(g_meshes[0]);
+    g_meshes[0]->rotation_angle += 0.01f;
     
     v3 colors[12] = 
     {
@@ -653,57 +729,94 @@ g_object_count = 1;
             v3 v1 = polygon->vertices_list[index_v1];
             v3 v2 = polygon->vertices_list[index_v2];
             
-            
-            //v0.z += 2.0f;
-            //v1.z += 2.0f;
-            //v2.z += 2.0f;
-            
             //NOTE(shvaykO): local space - to  world space
+            /*
+            v0 = rotate_y(v0,object->rotation_angle);
+            v1 = rotate_y(v1,object->rotation_angle);
+            v2 = rotate_y(v2,object->rotation_angle);
+            */
             v0 = add_v3v3(v0,object->world_p);
             v1 = add_v3v3(v1,object->world_p);
             v2 = add_v3v3(v2,object->world_p);
             
-            v0 = rotate_z(angle,v0);
-            v1 = rotate_z(angle,v1);
-            v2 = rotate_z(angle,v2);
-            
             // NOTE(shvayko): Backface culling
-            // NOTE(shvayko): Left handed system. Clockwise ordering
-            
+            // NOTE(shvayko): Left handed system
             v3 poly_line0 = subtract_v3v3(v0,v2);
             v3 poly_line1 = subtract_v3v3(v1,v2);
             v3 poly_normal = normalize_v3(cross_product_3(poly_line0,poly_line1));
-            //dot_product_3(poly_normal,v0) > 0.0f
-            if(1)
+            bool culled = (dot_product_3(poly_normal,v0) < 0.0f);
+            if(!culled)
             {
-                //NOTE(shvaykO): world space - to - camera space
                 
-                //NOTE(shvayko): camera space - to - clip space
-                
-                v4 clip_v0 = v4f(v0.x,v0.y,v0.z,1.0f);
-                v4 clip_v1 = v4f(v1.x,v1.y,v1.z,1.0f);
-                v4 clip_v2 = v4f(v2.x,v2.y,v2.z,1.0f);
-                
-                camera_to_clip(projection_matrix, &clip_v0);
-                camera_to_clip(projection_matrix, &clip_v1);
-                camera_to_clip(projection_matrix, &clip_v2);
-                //NOTE(shvayko): clipping
+                v4 clip_v0 = camera_to_clip(projection_matrix, v0);
+                v4 clip_v1 = camera_to_clip(projection_matrix, v1);
+                v4 clip_v2 = camera_to_clip(projection_matrix, v2);
                 
                 //NOTE(shvayko): clip space - to - NDC space
                 
-                v3 ndc_v0,ndc_v1,ndc_v2;
-                perspective_divide(&clip_v0,&clip_v1,&clip_v2,&ndc_v0,&ndc_v1,&ndc_v2);
+                v4 vertices_for_clip[3] = {clip_v0,clip_v1,clip_v2};
+                u32 vertices_indices_outside_z[3];
+                u32 vertices_indices_inside_z[3];
+                u32 vertices_outside = 0;
+                u32 vertices_inside_z = 0;
+                u32 vertices_count_after_clipping = 0;
                 
-                //NOTE(shvayko): NDC space - to - screen space
-                v3 screen_v0,screen_v1,screen_v2;
-                viewport(&ndc_v0,&ndc_v1,&ndc_v2,&screen_v0,&screen_v1,&screen_v2);
+                v4 *out_vertices =  (v4*)(malloc(sizeof(v4)*8));
+                vertices_count_after_clipping = clip_z(vertices_for_clip, out_vertices, 3);
                 
-                //v3 color = colors[poly_index % 12];
-                Vertex vv0 = {screen_v0,v3f(1.0f,0,0)};
-                Vertex vv1 = {screen_v1,v3f(1.0f,0,0)};
-                Vertex vv2 = {screen_v2,v3f(1.0f,0,0)};
-                
-                draw_triangle(backbuffer, vv0, vv1, vv2);
+                if(vertices_count_after_clipping == 0)
+                {
+                    continue;
+                }
+                else if(vertices_count_after_clipping == 3)
+                {
+                    
+                    v3 ndc_v0,ndc_v1,ndc_v2;
+                    perspective_divide(&out_vertices[0],&out_vertices[1],&out_vertices[2],&ndc_v0,&ndc_v1,&ndc_v2);
+                    
+                    //NOTE(shvayko): NDC space - to - screen space
+                    v3 screen_v0,screen_v1,screen_v2;
+                    viewport(&ndc_v0,&ndc_v1,&ndc_v2,&screen_v0,&screen_v1,&screen_v2);
+                    
+                    v3 color = colors[1];
+                    Vertex vv0 = {screen_v0,color};
+                    Vertex vv1 = {screen_v1,color};
+                    Vertex vv2 = {screen_v2,color};
+                    
+                    draw_triangle(backbuffer, vv0, vv1, vv2);
+                }
+                else
+                {
+                    u32 triangles_count =  (vertices_count_after_clipping - 2);
+                    for(u32 index = 0;
+                        index < triangles_count;
+                        index++)
+                    {
+                        // NOTE(shvayko):TRIANGULATION
+                        v4 triangulated_vertex_0 = out_vertices[0];
+                        v4 triangulated_vertex_1 = out_vertices[index + 1];
+                        v4 triangulated_vertex_2 = out_vertices[index + 2];
+                        
+                        v3 ndc_v0,ndc_v1,ndc_v2;
+                        perspective_divide(&triangulated_vertex_0,&triangulated_vertex_1,&triangulated_vertex_2,&ndc_v0,&ndc_v1,&ndc_v2);
+                        
+                        //NOTE(shvayko): NDC space - to - screen space
+                        v3 screen_v0,screen_v1,screen_v2;
+                        viewport(&ndc_v0,&ndc_v1,&ndc_v2,&screen_v0,&screen_v1,&screen_v2);
+                        
+                        
+                        v3 color = colors[0];
+                        Vertex vv0 = {screen_v0,color};
+                        Vertex vv1 = {screen_v1,color};
+                        Vertex vv2 = {screen_v2,color};
+                        
+                        draw_triangle(backbuffer, vv0, vv1, vv2);
+                    }
+                }
+                if(out_vertices)
+                {
+                    free(out_vertices);
+                }
             }
         }
     }

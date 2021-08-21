@@ -107,10 +107,8 @@ typedef struct FileContent
 }FileContent;
 
 FileContent win_read_file(char *filename);
-<<<<<<< HEAD
+
 void win_write_file(char *filename, void *data, u32 bytes_to_write);
-=======
->>>>>>> c8f0ac7a68ed4f6288d6d09b7908b62e68f25d95
 
 // NOTE(shvayko): Stretchy buffers implementation
 typedef struct ArrayHeader
